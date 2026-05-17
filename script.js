@@ -42,6 +42,8 @@
     window.addEventListener('scroll', () => {
       if (window.scrollY < window.innerHeight) {
         heroImg.style.transform = `translateY(${window.scrollY * 0.15}px)`;
+      } else {
+        heroImg.style.transform = '';
       }
     }, { passive: true });
   }

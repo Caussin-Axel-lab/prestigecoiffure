@@ -159,6 +159,10 @@
     .nav-links { display: none; }
     .hamburger { display: block; }
     .cta-btn.nav-cta { display: none; }
+    section { padding-left: 32px; padding-right: 32px; }
+    .hero { padding-left: 32px; padding-right: 32px; }
+    .signature-band { padding-left: 32px; padding-right: 32px; }
+    .cta-band { padding-left: 32px; padding-right: 32px; }
   }
 
   .mobile-menu {
