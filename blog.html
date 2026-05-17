@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Le Journal — Prestige Coiffure Chalon-sur-Saône</title>
+<meta name="description" content="Conseils, soins, tendances et coulisses du salon Prestige Coiffure à Chalon-sur-Saône. Le journal de l'équipe.">
+
+<meta property="og:title" content="Le Journal — Prestige Coiffure">
+<meta property="og:description" content="Conseils, soins, tendances et coulisses du salon Prestige Coiffure à Chalon-sur-Saône.">
+<meta property="og:type" content="website">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Manrope:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="blog.css">
+</head>
+<body>
+
+<!-- ============ NAV (structure identique à index.html) ============ -->
+<header class="topnav scrolled" id="topnav">
+  <a href="index.html" class="logo">Prestige <em>Coiffure</em></a>
+  <ul class="nav-links">
+      <li><a href="index.html#le-salon">Le salon</a></li>
+      <li><a href="index.html#prestations">Prestations</a></li>
+      <li><a href="index.html#marques">Marques</a></li>
+      <li><a href="index.html#equipe">L'équipe</a></li>
+      <li><a href="blog.html" class="active">Journal</a></li>
+      <li><a href="index.html#avis">Avis</a></li>
+      <li><a href="index.html#contact">Contact</a></li>
+  </ul>
+  <a href="https://www.planity.com/prestige-coiffure-71100-chalon-sur-saone" target="_blank" rel="noopener" class="cta-btn nav-cta">Prendre RDV</a>
+  <button class="hamburger" id="hamburger" aria-label="Menu">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <line x1="3" y1="7" x2="21" y2="7"/>
+      <line x1="3" y1="17" x2="21" y2="17"/>
+    </svg>
+  </button>
+</header>
+
+<nav class="mobile-menu" id="mobileMenu">
+    <ul>
+        <li><a href="index.html#le-salon">Le salon</a></li>
+        <li><a href="index.html#prestations">Prestations</a></li>
+        <li><a href="index.html#marques">Marques</a></li>
+        <li><a href="index.html#equipe">L'équipe</a></li>
+        <li><a href="blog.html">Journal</a></li>
+        <li><a href="index.html#avis">Avis</a></li>
+        <li><a href="index.html#contact">Contact</a></li>
+    </ul>
+    <a href="https://www.planity.com/prestige-coiffure-71100-chalon-sur-saone" target="_blank" rel="noopener" class="cta-btn">Prendre RDV</a>
+</nav>
+
+<!-- ============ HERO BLOG ============ -->
+<header class="blog-hero">
+  <div class="blog-hero-inner">
+    <div class="blog-hero-label">Le Journal · N°1</div>
+    <h1 class="blog-hero-title">
+      Conseils, soins, tendances.<br>
+      Et un peu de <em>notre histoire</em>.
+    </h1>
+    <p class="blog-hero-sub">
+      Chaque mois, l'équipe Prestige Coiffure partage ses gestes, ses inspirations
+      et ses coulisses. Pour mieux comprendre vos cheveux — et continuer la
+      conversation entre deux rendez-vous.
+    </p>
+    <div class="blog-hero-meta">
+      <span>Mis à jour mensuellement</span>
+      <span class="dot">·</span>
+      <span>Écrit par l'équipe du salon</span>
+    </div>
+  </div>
+</header>
+
+<!-- ============ ARTICLE MIS EN AVANT ============ -->
+<section class="featured">
+  <div class="featured-inner">
+    <div class="blog-section-label">À la une</div>
+    <article class="featured-article">
+      <a href="#" class="featured-image">
+        <img src="https://images.unsplash.com/photo-1633681926022-84752f5b0c66?w=1200&q=80" alt="Massage du cuir chevelu pendant un head spa">
+        <span class="featured-tag">Soins</span>
+      </a>
+      <div class="featured-content">
+        <div class="featured-meta">
+          <span>12 mai 2026</span>
+          <span class="dot">·</span>
+          <span>7 min de lecture</span>
+        </div>
+        <h2 class="featured-title">
+          Le head spa — <em>une parenthèse</em> qui change tout
+        </h2>
+        <p class="featured-excerpt">
+          Vous l'avez peut-être croisé sur les réseaux. Le head spa,
+          rituel venu du Japon, est désormais l'une de nos signatures.
+          Mais qu'est-ce qui se cache vraiment derrière ce soin du cuir
+          chevelu — et pourquoi y prendre rendez-vous ?
+        </p>
+        <a href="#" class="featured-cta">Lire l'article →</a>
+      </div>
+    </article>
+  </div>
+</section>
+
+<!-- ============ FILTRES ============ -->
+<section class="filters">
+  <div class="filters-inner">
+    <button class="filter active" data-cat="all">Tous</button>
+    <button class="filter" data-cat="soins">Soins</button>
+    <button class="filter" data-cat="tendances">Tendances</button>
+    <button class="filter" data-cat="marques">Marques</button>
+    <button class="filter" data-cat="conseils">Conseils</button>
+    <button class="filter" data-cat="salon">Vie du salon</button>
+  </div>
+</section>
+
+<!-- ============ GRILLE D'ARTICLES ============ -->
+<section class="articles">
+  <div class="articles-grid">
+
+    <article class="article-card" data-cat="marques">
+      <a href="#" class="card-image">
+        <img src="https://images.unsplash.com/photo-1556228720-195a672e8a03?w=800&q=80" alt="Produits Davines">
+        <span class="card-tag">Marques</span>
+      </a>
+      <div class="card-body">
+        <h3>Davines — la beauté responsable, expliquée simplement</h3>
+        <p>Pourquoi nous avons choisi de devenir ambassadeurs de cette marque italienne, et ce que ça change concrètement pour vos cheveux.</p>
+        <div class="card-meta">
+          <span>5 mai 2026</span>
+          <span class="dot">·</span>
+          <span>5 min</span>
+        </div>
+      </div>
+    </article>
+
+    <article class="article-card" data-cat="soins">
+      <a href="#" class="card-image">
+        <img src="https://images.unsplash.com/photo-1605497788044-5a32c7078486?w=800&q=80" alt="Cheveux lisses brillants">
+        <span class="card-tag">Soins</span>
+      </a>
+      <div class="card-body">
+        <h3>Lissage Ybera — la promesse d'un cheveu lisse, sans formol</h3>
+        <p>Combien de temps ça tient, pour quels cheveux, comment l'entretenir à la maison. On répond aux questions qu'on nous pose en cabine.</p>
+        <div class="card-meta">
+          <span>28 avril 2026</span>
+          <span class="dot">·</span>
+          <span>6 min</span>
+        </div>
+      </div>
+    </article>
+
+    <article class="article-card" data-cat="soins">
+      <a href="#" class="card-image">
+        <img src="https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=800&q=80" alt="Personne souriante avec une coiffure soignée">
+        <span class="card-tag">Soins</span>
+      </a>
+      <div class="card-body">
+        <h3>Prothèse capillaire — retrouver confiance, en toute discrétion</h3>
+        <p>Une prestation que nous proposons avec beaucoup de précaution, pour les femmes et les hommes traversant une perte de cheveux. Comment ça se passe.</p>
+        <div class="card-meta">
+          <span>20 avril 2026</span>
+          <span class="dot">·</span>
+          <span>8 min</span>
+        </div>
+      </div>
+    </article>
+
+    <article class="article-card" data-cat="conseils">
+      <a href="#" class="card-image">
+        <img src="https://images.unsplash.com/photo-1605980776566-0486c3ac7617?w=800&q=80" alt="Cheveux bouclés">
+        <span class="card-tag">Conseils</span>
+      </a>
+      <div class="card-body">
+        <h3>Cheveux bouclés — la routine que recommandent nos coiffeuses</h3>
+        <p>Trois gestes simples, deux produits essentiels, une habitude à abandonner. La méthode qu'on transmet à chaque cliente en cabine.</p>
+        <div class="card-meta">
+          <span>14 avril 2026</span>
+          <span class="dot">·</span>
+          <span>4 min</span>
+        </div>
+      </div>
+    </article>
+
+    <article class="article-card" data-cat="tendances">
+      <a href="#" class="card-image">
+        <img src="https://images.unsplash.com/photo-1622286342621-4bd786c2447c?w=800&q=80" alt="Coupe homme moderne">
+        <span class="card-tag">Tendances</span>
+      </a>
+      <div class="card-body">
+        <h3>Coupe homme — ce qui se porte cet automne 2026</h3>
+        <p>Notre barbier revient de la Fashion Week parisienne avec cinq tendances précises, accessibles, et adaptables à la plupart des visages.</p>
+        <div class="card-meta">
+          <span>6 avril 2026</span>
+          <span class="dot">·</span>
+          <span>5 min</span>
+        </div>
+      </div>
+    </article>
+
+    <article class="article-card" data-cat="tendances">
+      <a href="#" class="card-image">
+        <img src="https://images.unsplash.com/photo-1595163205702-ffd66a13b9f8?w=800&q=80" alt="Couleur végétale">
+        <span class="card-tag">Tendances</span>
+      </a>
+      <div class="card-body">
+        <h3>Couleur végétale — qui peut tenter l'expérience ?</h3>
+        <p>Le 100 % naturel séduit, mais ne convient pas à tous les cheveux. Diagnostic honnête et démarche à suivre avant de se lancer.</p>
+        <div class="card-meta">
+          <span>28 mars 2026</span>
+          <span class="dot">·</span>
+          <span>6 min</span>
+        </div>
+      </div>
+    </article>
+
+    <article class="article-card" data-cat="salon">
+      <a href="#" class="card-image">
+        <img src="https://images.unsplash.com/photo-1560066984-138dadb4c035?w=800&q=80" alt="Intérieur du salon">
+        <span class="card-tag">Vie du salon</span>
+      </a>
+      <div class="card-body">
+        <h3>Réouverture — huit mois de travaux racontés en images</h3>
+        <p>Du démontage du carrelage à l'installation des nouvelles cabines head spa : revivez les coulisses de la métamorphose du salon.</p>
+        <div class="card-meta">
+          <span>20 mars 2026</span>
+          <span class="dot">·</span>
+          <span>3 min</span>
+        </div>
+      </div>
+    </article>
+
+    <article class="article-card" data-cat="salon">
+      <a href="#" class="card-image">
+        <img src="https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?w=800&q=80" alt="Équipe de coiffeurs">
+        <span class="card-tag">Vie du salon</span>
+      </a>
+      <div class="card-body">
+        <h3>Nos coiffeurs vous présentent leurs gestes signatures</h3>
+        <p>Chacun a son geste, sa coupe fétiche, sa méthode. Petite série de portraits dans les coulisses de l'équipe Prestige.</p>
+        <div class="card-meta">
+          <span>10 mars 2026</span>
+          <span class="dot">·</span>
+          <span>7 min</span>
+        </div>
+      </div>
+    </article>
+
+  </div>
+
+  <div class="articles-empty" id="emptyState" hidden>
+    <p>Aucun article dans cette catégorie pour le moment. Revenez bientôt.</p>
+  </div>
+</section>
+
+<!-- ============ NEWSLETTER ============ -->
+<section class="newsletter">
+  <div class="newsletter-inner">
+    <div class="newsletter-label">Restez en contact</div>
+    <h2 class="newsletter-title">
+      Recevez le <em>Journal</em> dans votre boîte mail
+    </h2>
+    <p class="newsletter-sub">
+      Un email par mois, jamais plus. Nos nouveaux articles, les conseils
+      de saison, les annonces du salon. Aucun spam, désinscription en un clic.
+    </p>
+    <form class="newsletter-form" id="newsletterForm">
+      <input type="email" placeholder="votre@email.fr" aria-label="Votre adresse email" required>
+      <button type="submit">S'inscrire</button>
+    </form>
+    <div class="newsletter-confirm" id="newsletterConfirm" hidden>Merci, votre inscription est prise en compte.</div>
+  </div>
+</section>
+
+<!-- ============ CTA BAND (structure identique à index.html) ============ -->
+<div class="cta-band">
+  <div class="cta-band-content">
+    <h2>Réservez votre <em>parenthèse</em>.</h2>
+    <p>Rendez-vous en ligne 7j/7 sur Planity, ou par téléphone aux heures d'ouverture.</p>
+    <a href="https://www.planity.com/prestige-coiffure-71100-chalon-sur-saone" target="_blank" rel="noopener" class="cta-btn gold">Prendre rendez-vous</a>
+  </div>
+</div>
+
+<!-- ============ FOOTER (structure identique à index.html) ============ -->
+<footer class="main">
+  <div class="footer-grid">
+    <div>
+      <div class="footer-logo">Prestige <em>Coiffure</em></div>
+      <p style="font-size: 13px; line-height: 1.55; color: rgba(251, 248, 242, 0.78);">Salon de coiffure indépendant au cœur de Chalon-sur-Saône depuis 2009. Ambassadeur Davines, partenaire Ybera et American Crew.</p>
+    </div>
+    <div>
+      <h4>Navigation</h4>
+      <ul>
+          <li><a href="index.html#le-salon">Le salon</a></li>
+          <li><a href="index.html#prestations">Prestations</a></li>
+          <li><a href="index.html#marques">Marques</a></li>
+          <li><a href="index.html#equipe">L'équipe</a></li>
+          <li><a href="index.html#avis">Avis</a></li>
+          <li><a href="blog.html">Journal</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4>Contact</h4>
+      <ul>
+        <li><a href="tel:+33385930930">03 85 93 09 30</a></li>
+        <li>12 bd de la République</li>
+        <li>71100 Chalon-sur-Saône</li>
+      </ul>
+    </div>
+    <div>
+      <h4>Suivez-nous</h4>
+      <ul>
+        <li><a href="https://www.instagram.com/prestigecoiffure_chalon/" target="_blank" rel="noopener">Instagram</a></li>
+        <li><a href="https://www.facebook.com/prestigecoiff" target="_blank" rel="noopener">Facebook</a></li>
+        <li><a href="https://www.planity.com/prestige-coiffure-71100-chalon-sur-saone" target="_blank" rel="noopener">Planity</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <div>© 2026 Prestige Coiffure SC · SIREN 444 742 803 · RCS Chalon-sur-Saône</div>
+    <div>Mentions légales · Politique de confidentialité</div>
+  </div>
+</footer>
+
+<!-- ============ SCRIPT INLINE
+     On n'inclut PAS script.js car on a besoin d'un comportement différent ici :
+     la navbar reste TOUJOURS dans son état "scrolled" (hero crème, sinon menu invisible).
+============================================================ -->
+<script>
+  // La navbar est déjà en .scrolled dans le HTML, on la garde en permanence
+  // (pas de listener scroll qui l'enlèverait quand on est en haut de page)
+
+  // Menu mobile
+  const hamburger = document.getElementById('hamburger');
+  const mobileMenu = document.getElementById('mobileMenu');
+  hamburger.addEventListener('click', () => mobileMenu.classList.toggle('open'));
+  mobileMenu.querySelectorAll('a').forEach(link => {
+    link.addEventListener('click', () => mobileMenu.classList.remove('open'));
+  });
+
+  // Filtres catégories
+  const filterBtns = document.querySelectorAll('.filter');
+  const cards = document.querySelectorAll('.article-card');
+  const emptyState = document.getElementById('emptyState');
+
+  filterBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      filterBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const cat = btn.dataset.cat;
+      let visibleCount = 0;
+      cards.forEach(card => {
+        const match = cat === 'all' || card.dataset.cat === cat;
+        card.style.display = match ? '' : 'none';
+        if (match) visibleCount++;
+      });
+      emptyState.hidden = visibleCount > 0;
+    });
+  });
+
+  // Reveal au scroll
+  const revealEls = document.querySelectorAll('.article-card, .featured-article, .newsletter-inner');
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('revealed');
+        obs.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.1 });
+  revealEls.forEach(el => obs.observe(el));
+
+  // Newsletter (à brancher sur Brevo/Mailjet plus tard)
+  const form = document.getElementById('newsletterForm');
+  const confirmMsg = document.getElementById('newsletterConfirm');
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    form.hidden = true;
+    confirmMsg.hidden = false;
+  });
+</script>
+
+</body>
+</html>
