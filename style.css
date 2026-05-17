@@ -890,6 +890,32 @@
     border: 1px solid var(--line);
     padding: 26px 28px;
     border-radius: 4px;
+    position: relative;
+    overflow: hidden;
+  }
+  .review::before {
+    content: '\201C';
+    position: absolute;
+    top: -20px; left: 16px;
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 180px;
+    line-height: 1;
+    color: var(--ink);
+    opacity: 0.06;
+    pointer-events: none;
+    user-select: none;
+  }
+  .review--featured {
+    background: var(--bg);
+    border-color: var(--line);
+  }
+  .review--featured .quote {
+    font-size: 20px;
+  }
+  .review--featured .author {
+    border-left: 2px solid var(--gold);
+    padding-left: 12px;
+    margin-left: 2px;
   }
   .review .quote {
     font-family: 'Cormorant Garamond', serif;
@@ -1065,6 +1091,39 @@
     gap: 16px;
     font-size: 11px;
     color: rgba(251, 248, 242, 0.6);
+  }
+
+  /* === ORNAMENT DIVIDER === */
+  .ornament-divider {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 0 48px;
+    height: 48px;
+    background: var(--bg);
+  }
+  .ornament-divider span:not(.diamond) {
+    flex: 1;
+    height: 1px;
+    background: var(--line);
+    max-width: 120px;
+  }
+  .ornament-divider .diamond {
+    font-size: 8px;
+    color: var(--gold);
+    letter-spacing: 0;
+  }
+
+  /* === SERVICES CTA META === */
+  .services-cta-meta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(251, 248, 242, 0.65);
+    margin-bottom: 14px;
   }
 
   /* === REVEAL === */
