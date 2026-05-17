@@ -50,18 +50,42 @@
     });
   });
 
-  // Reveal on scroll
-  const revealEls = document.querySelectorAll('.salon-text, .salon-images, .signature-content, .service, .feature-cabine, .update-card, .marque-card, .person-card, .review, .reviews-summary, .contact-info-block, .hours-list, .map-embed, .hero-image');
-  revealEls.forEach((el, i) => {
-    el.classList.add('reveal');
-    el.style.transitionDelay = (i % 6) * 60 + 'ms';
+  // Stagger + micro-blur reveal
+  const STAGGER_CONFIGS = [
+    { selector: '.services-grid .service', delay: 60 },
+    { selector: '.marques-grid .marque-card', delay: 80 },
+    { selector: '.equipe-grid .person-card', delay: 60 },
+    { selector: '.reviews-list .review', delay: 100 },
+  ];
+
+  // Appliquer stagger aux grilles
+  STAGGER_CONFIGS.forEach(({ selector, delay }) => {
+    document.querySelectorAll(selector).forEach((el, i) => {
+      el.classList.add('reveal');
+      el.style.transitionDelay = (i * delay) + 'ms';
+    });
   });
-  const obs = new IntersectionObserver((entries) => {
+
+  // Éléments non-grille sans stagger
+  const singleRevealSelectors = [
+    '.salon-text', '.salon-images', '.signature-content',
+    '.feature-cabine', '.update-card', '.reviews-summary',
+    '.contact-info-block', '.hours-list', '.map-embed',
+  ];
+  singleRevealSelectors.forEach(selector => {
+    document.querySelectorAll(selector).forEach(el => {
+      el.classList.add('reveal');
+    });
+  });
+
+  // Observer
+  const revealObs = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
       if (entry.isIntersecting) {
         entry.target.classList.add('visible');
-        obs.unobserve(entry.target);
+        revealObs.unobserve(entry.target);
       }
     });
-  }, { threshold: 0.1 });
-  revealEls.forEach(el => obs.observe(el));
+  }, { threshold: 0.08 });
+
+  document.querySelectorAll('.reveal').forEach(el => revealObs.observe(el));
