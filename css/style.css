@@ -465,36 +465,118 @@
     border-top: 1px solid var(--line);
   }
   @media (max-width: 700px) { .services-grid { grid-template-columns: 1fr; } }
+
   .service {
-    padding: 30px 0;
+    padding: 28px 0 28px;
     border-bottom: 1px solid var(--line-soft);
     padding-right: 24px;
+    transition: background 0.3s ease;
+    position: relative;
   }
-  .services-grid .service:nth-child(odd) { border-right: 1px solid var(--line-soft); padding-right: 32px; }
-  .services-grid .service:nth-child(even) { padding-left: 32px; }
+  .service:hover { background: var(--bg-soft); }
+  .services-grid .service:nth-child(odd) {
+    border-right: 1px solid var(--line-soft);
+    padding-right: 36px;
+    padding-left: 4px;
+  }
+  .services-grid .service:nth-child(even) {
+    padding-left: 36px;
+    padding-right: 4px;
+  }
   @media (max-width: 700px) {
-    .services-grid .service { border-right: none !important; padding-left: 0 !important; padding-right: 0 !important; }
+    .services-grid .service {
+      border-right: none !important;
+      padding-left: 0 !important;
+      padding-right: 0 !important;
+    }
   }
+
+  .service-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+  .service-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: var(--gold-bright);
+    flex-shrink: 0;
+  }
+  .service-icon {
+    color: var(--line);
+    transition: color 0.35s ease;
+    flex-shrink: 0;
+  }
+  .service:hover .service-icon { color: var(--sage-deep); }
+
   .service-name {
     font-family: 'Cormorant Garamond', serif;
-    font-size: 24px;
+    font-size: 22px;
     font-weight: 600;
     margin-bottom: 8px;
     color: var(--ink);
+    line-height: 1.2;
+    transition: color 0.3s ease;
   }
+  .service:hover .service-name { color: var(--ink); }
+  .service--linked:hover .service-name { color: var(--wine); }
+
   .service-desc {
-    font-size: 14px;
+    font-size: 13.5px;
     color: var(--ink-soft);
-    line-height: 1.55;
-    margin-bottom: 8px;
+    line-height: 1.58;
   }
-  .service-price {
+
+  .service-hover {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    overflow: hidden;
+    max-height: 0;
+    opacity: 0;
+    transition: max-height 0.35s ease, opacity 0.28s ease, margin-top 0.35s ease;
+    margin-top: 0;
+  }
+  .service:hover .service-hover {
+    max-height: 32px;
+    opacity: 1;
+    margin-top: 16px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .service-hover { transition: opacity 0.2s ease; }
+  }
+
+  .service-duration {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--sage-deep);
-    letter-spacing: 0.05em;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+    display: flex;
+    align-items: center;
+    gap: 7px;
   }
+  .service-duration::before {
+    content: '◆';
+    color: var(--gold-bright);
+    font-size: 6px;
+  }
+  .service-page-link {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--wine);
+    text-decoration: none;
+    border-bottom: 1px solid currentColor;
+    padding-bottom: 1px;
+    transition: color 0.2s ease;
+    white-space: nowrap;
+  }
+  .service-page-link:hover { color: var(--sage-deep); }
+
   .services-cta {
     margin-top: 48px;
     text-align: center;
@@ -1153,4 +1235,25 @@
       transform: none;
       filter: none;
     }
+  }
+
+  /* === PAGE TRANSITIONS === */
+  @view-transition { navigation: auto; }
+
+  @keyframes vt-slide-out {
+    from { opacity: 1; transform: translateY(0); }
+    to   { opacity: 0; transform: translateY(-10px); }
+  }
+  @keyframes vt-slide-in {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  ::view-transition-old(root) {
+    animation: 220ms cubic-bezier(0.4, 0, 1, 1) both vt-slide-out;
+  }
+  ::view-transition-new(root) {
+    animation: 340ms cubic-bezier(0, 0, 0.2, 1) 60ms both vt-slide-in;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
   }
