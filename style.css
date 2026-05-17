@@ -27,6 +27,29 @@
     overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
   }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    pointer-events: none;
+    opacity: 0.035;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+    background-size: 300px 300px;
+  }
+
+  #scroll-progress {
+    position: fixed;
+    top: 0; left: 0;
+    height: 2px;
+    width: 0%;
+    background: var(--gold-bright);
+    z-index: 200;
+    transition: width 0.1s linear;
+    pointer-events: none;
+  }
+
   .display { font-family: 'Cormorant Garamond', serif; }
   a { color: inherit; }
   img { max-width: 100%; display: block; }
@@ -136,7 +159,7 @@
   /* === HERO === */
   .hero {
     min-height: 100vh;
-    padding: 120px 32px 60px;
+    padding: 120px 48px 80px;
     position: relative;
     display: flex;
     align-items: center;
@@ -287,7 +310,7 @@
   }
 
   /* === SECTIONS === */
-  section { padding: 100px 32px; position: relative; }
+  section { padding: 120px 48px; position: relative; }
   .container { max-width: 1100px; margin: 0 auto; }
 
   .section-eyebrow {
@@ -447,7 +470,7 @@
 
   /* === SIGNATURE BAND === */
   .signature-band {
-    padding: 72px 32px;
+    padding: 88px 48px;
     background: var(--bg);
     border-top: 1px solid var(--line);
     border-bottom: 1px solid var(--line);
@@ -919,7 +942,7 @@
   .cta-band {
     background: var(--bg-dark);
     color: var(--cream);
-    padding: 80px 32px;
+    padding: 96px 48px;
     text-align: center;
     position: relative;
     overflow: hidden;
