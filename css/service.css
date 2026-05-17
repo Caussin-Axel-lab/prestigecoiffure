@@ -1,0 +1,500 @@
+/* ============================================================
+   service.css — Pages services Prestige Coiffure
+   Chargé après style.css (nav, footer, cta-band, boutons)
+   ============================================================ */
+
+/* ── SERVICE PAGE HERO ──────────────────────────────────── */
+.service-page-hero {
+  padding: 160px 32px 72px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+
+.service-page-hero-inner {
+  max-width: 920px;
+  margin: 0 auto;
+}
+
+/* Breadcrumb */
+.service-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--ink-muted);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  margin-bottom: 24px;
+}
+
+.service-breadcrumb a {
+  color: var(--ink-muted);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.service-breadcrumb a:hover {
+  color: var(--ink);
+}
+
+.service-breadcrumb span {
+  color: var(--gold-bright);
+  font-size: 7px;
+}
+
+/* Category label */
+.service-category {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--sage-deep);
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.service-category::before {
+  content: '';
+  display: inline-block;
+  width: 24px;
+  height: 1px;
+  background: var(--gold-bright);
+  flex-shrink: 0;
+}
+
+/* Title */
+.service-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: clamp(38px, 6vw, 68px);
+  font-weight: 500;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  margin: 0 0 20px;
+}
+
+.service-title em {
+  font-style: italic;
+  color: var(--wine);
+}
+
+/* Subtitle */
+.service-subtitle {
+  font-family: 'Cormorant Garamond', serif;
+  font-style: italic;
+  font-size: clamp(18px, 2.4vw, 24px);
+  color: var(--ink-soft);
+  max-width: 680px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* Metrics */
+.service-metrics {
+  display: flex;
+  flex-direction: row;
+  gap: 0;
+  margin-top: 40px;
+}
+
+.service-metric {
+  padding: 20px 36px;
+  border-right: 1px solid var(--line);
+}
+
+.service-metric:first-child {
+  padding-left: 0;
+}
+
+.service-metric:last-child {
+  border-right: none;
+}
+
+.service-metric-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  margin-bottom: 6px;
+}
+
+.service-metric-value {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+/* ── HERO IMAGE ──────────────────────────────────────────── */
+.service-hero-image {
+  width: 100%;
+  max-height: 560px;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+}
+
+.service-hero-image img {
+  width: 100%;
+  height: 560px;
+  object-fit: cover;
+  display: block;
+}
+
+/* ── SERVICE CONTENT (2-column layout) ───────────────────── */
+.service-content {
+  padding: 88px 32px 0;
+}
+
+.service-content-inner {
+  max-width: 1080px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 80px;
+}
+
+/* ── SERVICE BODY (left column) ─────────────────────────── */
+.service-body h2 {
+  font-family: 'Cormorant Garamond', serif;
+  font-weight: 500;
+  font-size: clamp(26px, 3vw, 34px);
+  margin: 56px 0 24px;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+}
+
+.service-body h2 em {
+  font-style: italic;
+  color: var(--wine);
+}
+
+.service-body p {
+  font-family: 'Manrope', sans-serif;
+  font-size: 17px;
+  line-height: 1.78;
+  color: var(--ink-soft);
+  margin-bottom: 24px;
+}
+
+.service-body p strong {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* Protocol */
+.service-protocol {
+  margin-top: 64px;
+}
+
+.service-protocol-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--sage-deep);
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  margin-bottom: 32px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.service-protocol-label::before {
+  content: '';
+  display: inline-block;
+  width: 18px;
+  height: 1px;
+  background: var(--gold-bright);
+  flex-shrink: 0;
+}
+
+.service-step {
+  display: flex;
+  gap: 24px;
+  padding-bottom: 32px;
+  border-bottom: 1px solid var(--line-soft);
+  margin-bottom: 32px;
+}
+
+.service-step:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.service-step-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--gold-bright);
+  letter-spacing: 0.18em;
+  flex-shrink: 0;
+  padding-top: 3px;
+  min-width: 28px;
+}
+
+.service-step-content h3 {
+  font-family: 'Manrope', sans-serif;
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--ink);
+  margin: 0 0 8px;
+}
+
+.service-step-content p {
+  font-family: 'Manrope', sans-serif;
+  font-size: 14.5px;
+  color: var(--ink-soft);
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* ── SIDEBAR (right column) ─────────────────────────────── */
+.service-sidebar-card {
+  background: var(--bg-soft);
+  padding: 32px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  position: sticky;
+  top: 96px;
+}
+
+.service-sidebar-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--sage-deep);
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.service-sidebar-title::before {
+  content: '';
+  display: inline-block;
+  width: 18px;
+  height: 1px;
+  background: var(--gold-bright);
+  flex-shrink: 0;
+}
+
+.service-sidebar-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.service-sidebar-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.service-sidebar-list li::before {
+  content: '◆';
+  color: var(--gold-bright);
+  font-size: 6px;
+  margin-top: 6px;
+  flex-shrink: 0;
+}
+
+.service-sidebar-fact {
+  font-family: 'Manrope', sans-serif;
+  font-size: 13.5px;
+  color: var(--ink-soft);
+  line-height: 1.5;
+}
+
+.service-sidebar-fact strong {
+  font-weight: 600;
+  color: var(--ink);
+  display: block;
+  margin-bottom: 2px;
+}
+
+.service-sidebar-cta {
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+  text-align: center;
+}
+
+/* ── BENEFITS ────────────────────────────────────────────── */
+.service-benefits {
+  padding: 88px 32px;
+  background: var(--bg-soft);
+  margin-top: 88px;
+}
+
+.service-benefits-inner {
+  max-width: 1080px;
+  margin: 0 auto;
+}
+
+.service-benefits-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--sage-deep);
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  margin-bottom: 32px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.service-benefits-label::before {
+  content: '';
+  display: inline-block;
+  width: 18px;
+  height: 1px;
+  background: var(--gold-bright);
+  flex-shrink: 0;
+}
+
+.service-benefits-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+  margin-top: 40px;
+}
+
+.service-benefit-card {
+  background: var(--bg);
+  padding: 28px 32px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+
+.service-benefit-icon {
+  color: var(--sage-deep);
+  margin-bottom: 16px;
+  display: block;
+}
+
+.service-benefit-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-weight: 500;
+  font-size: 20px;
+  color: var(--ink);
+  margin: 0 0 8px;
+}
+
+.service-benefit-text {
+  font-family: 'Manrope', sans-serif;
+  font-size: 14px;
+  color: var(--ink-soft);
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* ── FAQ ─────────────────────────────────────────────────── */
+.service-faq {
+  padding: 88px 32px 96px;
+}
+
+.service-faq-inner {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.service-faq-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--sage-deep);
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  margin-bottom: 40px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.service-faq-label::before {
+  content: '';
+  display: inline-block;
+  width: 18px;
+  height: 1px;
+  background: var(--gold-bright);
+  flex-shrink: 0;
+}
+
+.service-faq-item {
+  padding: 28px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.service-faq-item:last-child {
+  border-bottom: none;
+}
+
+.service-faq-question {
+  font-family: 'Cormorant Garamond', serif;
+  font-weight: 500;
+  font-size: 22px;
+  color: var(--ink);
+  margin: 0 0 14px;
+  line-height: 1.25;
+}
+
+.service-faq-answer {
+  font-family: 'Manrope', sans-serif;
+  font-size: 15px;
+  color: var(--ink-soft);
+  line-height: 1.7;
+  margin: 0;
+}
+
+/* ── RESPONSIVE @880px ───────────────────────────────────── */
+@media (max-width: 880px) {
+  .service-content-inner {
+    grid-template-columns: 1fr;
+  }
+
+  .service-sidebar-card {
+    position: static;
+  }
+
+  .service-metrics {
+    flex-wrap: wrap;
+  }
+
+  .service-metric {
+    padding: 16px 24px;
+  }
+
+  .service-metric:first-child {
+    padding-left: 0;
+  }
+
+  .service-benefits-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── RESPONSIVE @700px ───────────────────────────────────── */
+@media (max-width: 700px) {
+  .service-page-hero {
+    padding: 120px 20px 52px;
+  }
+
+  .service-content {
+    padding: 56px 20px 0;
+  }
+
+  .service-benefits {
+    padding: 64px 20px;
+  }
+
+  .service-faq {
+    padding: 64px 20px 80px;
+  }
+}
