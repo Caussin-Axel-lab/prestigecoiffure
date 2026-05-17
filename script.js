@@ -70,7 +70,7 @@
   const singleRevealSelectors = [
     '.salon-text', '.salon-images', '.signature-content',
     '.feature-cabine', '.update-card', '.reviews-summary',
-    '.contact-info-block', '.hours-list', '.map-embed',
+    '.contact-info-block', '.hours-list', '.map-embed', '.hero-image',
   ];
   singleRevealSelectors.forEach(selector => {
     document.querySelectorAll(selector).forEach(el => {
