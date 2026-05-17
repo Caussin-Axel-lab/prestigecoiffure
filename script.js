@@ -1,3 +1,32 @@
+// Entrée scénarisée du titre hero
+(function animateHeroTitle() {
+  const title = document.querySelector('.hero-title');
+  if (!title) return;
+
+  // Respecter prefers-reduced-motion
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+  const html = title.innerHTML.replace('<br>', '|||');
+  const parts = html.split('|||');
+  if (parts.length < 2) return;
+
+  title.innerHTML = parts.map(p =>
+    `<span class="hero-line" style="display:block;opacity:0;transform:translate(-12px,8px);will-change:opacity,transform">${p}</span>`
+  ).join('');
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      title.querySelectorAll('.hero-line').forEach((line, i) => {
+        setTimeout(() => {
+          line.style.transition = 'opacity 0.8s ease-out, transform 0.8s ease-out';
+          line.style.opacity = '1';
+          line.style.transform = 'translate(0,0)';
+        }, i * 120);
+      });
+    });
+  });
+})();
+
   // Scroll progress bar
   const scrollProgress = document.getElementById('scroll-progress');
   if (scrollProgress) {
