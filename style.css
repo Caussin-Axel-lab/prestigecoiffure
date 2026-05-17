@@ -63,7 +63,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    transition: all 0.3s ease;
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   }
   header.topnav.scrolled {
     background: rgba(244, 239, 230, 0.95);
@@ -95,9 +95,18 @@
     text-transform: uppercase;
     color: var(--ink);
     text-decoration: none;
-    transition: color 0.2s ease;
+    position: relative;
   }
-  .nav-links a:hover { color: var(--sage-deep); }
+  .nav-links a::after {
+    content: '';
+    position: absolute;
+    bottom: -2px; left: 0;
+    width: 0; height: 1px;
+    background: var(--sage-deep);
+    transition: width 0.3s ease;
+  }
+  .nav-links a:hover::after,
+  .nav-links a.active::after { width: 100%; }
   .cta-btn {
     background: var(--sage-deep);
     color: var(--cream);
