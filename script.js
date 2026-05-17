@@ -1,3 +1,23 @@
+  // Scroll progress bar
+  const scrollProgress = document.getElementById('scroll-progress');
+  if (scrollProgress) {
+    window.addEventListener('scroll', () => {
+      const total = document.documentElement.scrollHeight - window.innerHeight;
+      const progress = total > 0 ? (window.scrollY / total) * 100 : 0;
+      scrollProgress.style.width = progress + '%';
+    }, { passive: true });
+  }
+
+  // Parallaxe image hero
+  const heroImg = document.querySelector('.hero-image img');
+  if (heroImg) {
+    window.addEventListener('scroll', () => {
+      if (window.scrollY < window.innerHeight) {
+        heroImg.style.transform = `translateY(${window.scrollY * 0.15}px)`;
+      }
+    }, { passive: true });
+  }
+
   // Sticky nav scroll effect
   const nav = document.getElementById('topnav');
   window.addEventListener('scroll', () => {
