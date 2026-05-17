@@ -17,11 +17,10 @@
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       title.querySelectorAll('.hero-line').forEach((line, i) => {
-        setTimeout(() => {
-          line.style.transition = 'opacity 0.8s ease-out, transform 0.8s ease-out';
-          line.style.opacity = '1';
-          line.style.transform = 'translate(0,0)';
-        }, i * 120);
+        line.style.transitionDelay = `${i * 120}ms`;
+        line.style.transition = 'opacity 0.8s ease-out, transform 0.8s ease-out';
+        line.style.opacity = '1';
+        line.style.transform = 'translate(0,0)';
       });
     });
   });
