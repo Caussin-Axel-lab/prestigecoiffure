@@ -1303,3 +1303,53 @@
     transition: transform 0.25s ease;
   }
   .google-rating-badge:hover .grb-arrow { transform: translateX(3px); }
+
+  /* === MOBILE STICKY CTA === */
+  .mobile-cta {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 90;
+    display: none;
+    gap: 8px;
+    padding: 10px 14px;
+    background: rgba(244, 239, 230, 0.96);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-top: 1px solid var(--line);
+    transform: translateY(110%);
+    transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .mobile-cta.visible { transform: translateY(0); }
+  .mobile-cta-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 12px 14px;
+    border-radius: 999px;
+    text-decoration: none;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+  .mobile-cta-call {
+    color: var(--ink);
+    background: transparent;
+    border: 1px solid var(--ink);
+  }
+  .mobile-cta-call:hover { background: rgba(15, 15, 15, 0.06); }
+  .mobile-cta-book {
+    color: var(--cream);
+    background: var(--gold-bright);
+    border: 1px solid var(--gold-bright);
+  }
+  .mobile-cta-book:hover { background: var(--gold); border-color: var(--gold); }
+  @media (max-width: 880px) {
+    .mobile-cta { display: flex; }
+  }
