@@ -73,15 +73,22 @@
     padding: 12px 32px;
   }
   .logo {
-    font-family: 'Cormorant Garamond', serif;
-    font-size: 22px;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-    color: var(--ink);
-    text-decoration: none;
-    line-height: 1;
+    display: inline-block;
+    height: 54px;
+    line-height: 0;
+    transition: opacity 0.25s ease;
   }
-  .logo em { font-style: italic; font-weight: 500; color: var(--sage-deep); }
+  .logo:hover { opacity: 0.7; }
+  .logo img {
+    height: 100%;
+    width: auto;
+    display: block;
+  }
+  header.topnav.scrolled .logo { height: 46px; }
+  @media (max-width: 700px) {
+    .logo { height: 42px; }
+    header.topnav.scrolled .logo { height: 38px; }
+  }
   .nav-links {
     display: flex;
     gap: 32px;
@@ -504,12 +511,7 @@
     color: var(--gold-bright);
     flex-shrink: 0;
   }
-  .service-icon {
-    color: var(--line);
-    transition: color 0.35s ease;
-    flex-shrink: 0;
-  }
-  .service:hover .service-icon { color: var(--sage-deep); }
+  .service-icon { display: none; }
 
   .service-name {
     font-family: 'Cormorant Garamond', serif;
@@ -1156,14 +1158,17 @@
     margin-bottom: 14px;
   }
   footer.main .footer-logo {
-    font-family: 'Cormorant Garamond', serif;
-    font-size: 26px;
-    font-weight: 600;
-    color: var(--cream);
-    margin-bottom: 10px;
-    line-height: 1;
+    height: 84px;
+    margin-bottom: 18px;
+    line-height: 0;
   }
-  footer.main .footer-logo em { font-style: italic; color: var(--gold-bright); }
+  footer.main .footer-logo img {
+    height: 100%;
+    width: auto;
+    display: block;
+    filter: brightness(0) invert(1);
+    opacity: 0.92;
+  }
   footer.main ul { list-style: none; }
   footer.main li { padding: 4px 0; }
   footer.main a { color: rgba(251, 248, 242, 0.82); text-decoration: none; transition: color 0.2s ease; }
@@ -1257,3 +1262,44 @@
   @media (prefers-reduced-motion: reduce) {
     ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
   }
+
+  /* === GOOGLE RATING BADGE === */
+  .google-rating-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin: 16px auto 32px;
+    padding: 12px 22px;
+    background: var(--cream);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    text-decoration: none;
+    color: var(--ink);
+    font-family: 'Manrope', sans-serif;
+    font-size: 14px;
+    transition: border-color 0.25s ease, transform 0.25s ease;
+  }
+  .google-rating-badge:hover {
+    border-color: var(--ink);
+    transform: translateY(-1px);
+  }
+  .google-rating-badge .grb-stars {
+    color: var(--gold-bright);
+    font-size: 13px;
+    letter-spacing: 1px;
+  }
+  .google-rating-badge .grb-score strong {
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .google-rating-badge .grb-sep { color: var(--ink-muted); }
+  .google-rating-badge .grb-count {
+    font-size: 13px;
+    color: var(--ink-soft);
+  }
+  .google-rating-badge .grb-arrow {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--gold-bright);
+    transition: transform 0.25s ease;
+  }
+  .google-rating-badge:hover .grb-arrow { transform: translateX(3px); }
