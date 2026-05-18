@@ -42,6 +42,29 @@
     --glass-bg-strong: rgba(23, 21, 17, 0.96);
   }
 
+  /* === SKIP-LINK (a11y, visible au focus clavier seulement) === */
+  .skip-link {
+    position: absolute;
+    top: -100px;
+    left: 0;
+    z-index: 9999;
+    padding: 14px 22px;
+    background: var(--ink);
+    color: var(--cream);
+    text-decoration: none;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    border-radius: 0 0 6px 0;
+    transition: top 0.2s ease;
+  }
+  .skip-link:focus-visible {
+    top: 0;
+    outline: 2px solid var(--gold-bright);
+    outline-offset: -4px;
+  }
+
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html { scroll-behavior: smooth; }
   body {
