@@ -498,3 +498,95 @@
     padding: 64px 20px 80px;
   }
 }
+
+/* === SERVICE RELATED (lien vers article du blog) === */
+.service-related {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 0 32px 48px;
+  text-align: center;
+}
+.service-related-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  margin-bottom: 12px;
+}
+.service-related-link {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 18px;
+  color: var(--wine);
+  text-decoration: none;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 2px;
+  transition: border-color 0.25s ease;
+}
+.service-related-link:hover {
+  border-color: var(--wine);
+}
+
+/* === RELATED SERVICES (cross-sell en bas de page service) === */
+.service-related-services {
+  background: var(--bg-soft);
+  padding: 80px 32px;
+  border-top: 1px solid var(--line-soft);
+}
+.service-related-services .container {
+  max-width: 1180px;
+  margin: 0 auto;
+}
+.service-related-services .section-eyebrow {
+  margin-bottom: 32px;
+}
+.related-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+.related-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 22px 24px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  text-decoration: none;
+  color: var(--ink);
+  transition: border-color 0.25s ease, transform 0.25s ease;
+}
+.related-card:hover {
+  border-color: var(--ink);
+  transform: translateY(-2px);
+}
+.related-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: var(--gold-bright);
+  flex-shrink: 0;
+}
+.related-name {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.25;
+  color: var(--ink);
+  flex: 1;
+}
+.related-arrow {
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--gold-bright);
+  font-size: 18px;
+  flex-shrink: 0;
+  transition: transform 0.25s ease;
+}
+.related-card:hover .related-arrow {
+  transform: translateX(4px);
+}
+@media (max-width: 880px) {
+  .service-related-services { padding: 56px 22px; }
+  .related-grid { grid-template-columns: 1fr; }
+}
