@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>(function(){var s=localStorage.getItem('theme');var d=window.matchMedia('(prefers-color-scheme: dark)').matches;if(s==='dark'||(!s&&d))document.documentElement.setAttribute('data-theme','dark');})();</script>
 <title>Coupes enfant — En douceur & en confiance | Prestige Coiffure Chalon-sur-Saône</title>
 <meta name="description" content="Coupes enfant chez Prestige Coiffure à Chalon-sur-Saône. Patience, douceur, cadre calme. Premier rendez-vous en confiance, premier livret coiffure offert.">
 
@@ -88,6 +89,15 @@
     <li><a href="../index.html#avis">Avis</a></li>
     <li><a href="../index.html#contact">Contact</a></li>
   </ul>
+  <button class="theme-toggle" id="themeToggle" type="button" aria-label="Activer le mode sombre" aria-pressed="false" data-track="theme-toggle">
+    <svg class="theme-icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="4"/>
+      <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
+    </svg>
+    <svg class="theme-icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+    </svg>
+  </button>
   <a href="https://www.planity.com/prestige-coiffure-71100-chalon-sur-saone?utm_source=site&utm_medium=nav&utm_campaign=rdv_2026" target="_blank" rel="noopener noreferrer" class="cta-btn nav-cta" data-track="cta-book-nav">Prendre RDV</a>
   <button class="hamburger" id="hamburger" aria-label="Menu">
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -323,6 +333,7 @@
   </a>
 </div>
 <script src="../js/mobile-cta.js" defer></script>
+<script src="../js/theme-toggle.js" defer></script>
 
 </body>
 </html>
