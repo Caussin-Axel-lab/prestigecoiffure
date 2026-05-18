@@ -78,6 +78,35 @@
     -webkit-font-smoothing: antialiased;
   }
 
+  /* === FOCUS RINGS (clavier uniquement) === */
+  *:focus { outline: none; }
+  *:focus-visible {
+    outline: 2px solid var(--sage-deep);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+
+  /* Overrides pour éléments pill (border-radius 999px) */
+  .cta-btn:focus-visible,
+  .nav-call:focus-visible,
+  .theme-toggle:focus-visible,
+  .filter:focus-visible,
+  .hero-badge:focus-visible,
+  .google-rating-badge:focus-visible,
+  .mobile-cta-btn:focus-visible,
+  .sort-select:focus-visible {
+    border-radius: 999px;
+  }
+
+  /* Pour les cartes related-card avec border-radius 6px */
+  .related-card:focus-visible {
+    border-radius: 6px;
+  }
+
+  :root[data-theme="dark"] *:focus-visible {
+    outline-color: var(--gold-bright);
+  }
+
   body::before {
     content: '';
     position: fixed;
