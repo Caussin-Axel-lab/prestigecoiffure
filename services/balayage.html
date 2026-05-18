@@ -118,8 +118,8 @@
     <span>03 85 93 09 30</span>
   </a>
   <a href="https://www.planity.com/prestige-coiffure-71100-chalon-sur-saone?utm_source=site&utm_medium=nav&utm_campaign=rdv_2026" target="_blank" rel="noopener noreferrer" class="cta-btn nav-cta" data-track="cta-book-nav">Prendre RDV</a>
-  <button class="hamburger" id="hamburger" aria-label="Menu">
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+  <button class="hamburger" id="hamburger" type="button" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="mobileMenu">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
       <line x1="3" y1="7" x2="21" y2="7"/>
       <line x1="3" y1="17" x2="21" y2="17"/>
     </svg>
@@ -270,22 +270,22 @@
     <div class="service-benefits-label">Les bienfaits</div>
     <div class="service-benefits-grid">
       <div class="service-benefit-card">
-        <svg class="service-benefit-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M20 4L8 16"/><path d="M8 16c0 0-3 2-5 4 1-2 3-5 3-5"/><path d="M15 4h5v5"/></svg>
+        <svg class="service-benefit-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M20 4L8 16"/><path d="M8 16c0 0-3 2-5 4 1-2 3-5 3-5"/><path d="M15 4h5v5"/></svg>
         <div class="service-benefit-title">Reflets sur-mesure</div>
         <p class="service-benefit-text">Chaque technique est construite autour de votre base et de vos envies. Pas de résultat générique — un effet pensé pour vous, de la racine aux pointes.</p>
       </div>
       <div class="service-benefit-card">
-        <svg class="service-benefit-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 2s-7 7.5-7 12a7 7 0 0014 0c0-4.5-7-12-7-12z"/></svg>
+        <svg class="service-benefit-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M12 2s-7 7.5-7 12a7 7 0 0014 0c0-4.5-7-12-7-12z"/></svg>
         <div class="service-benefit-title">Adapté à toutes les bases</div>
         <p class="service-benefit-text">Chatain, brun, roux, déjà coloré — nous adaptons la technique à votre base de départ pour un résultat cohérent et respectueux de votre couleur naturelle.</p>
       </div>
       <div class="service-benefit-card">
-        <svg class="service-benefit-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 3v2M12 19v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M3 12h2M19 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/><circle cx="12" cy="12" r="3"/></svg>
+        <svg class="service-benefit-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M12 3v2M12 19v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M3 12h2M19 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/><circle cx="12" cy="12" r="3"/></svg>
         <div class="service-benefit-title">Effet naturel ou marqué</div>
         <p class="service-benefit-text">Du balayage soleil ultra-naturel au tie & dye très contrasté, toute une palette de possibilités pour exprimer votre personnalité.</p>
       </div>
       <div class="service-benefit-card">
-        <svg class="service-benefit-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/></svg>
+        <svg class="service-benefit-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/></svg>
         <div class="service-benefit-title">Repousse progressive sans démarcation</div>
         <p class="service-benefit-text">Le balayage est conçu pour vieillir bien. La repousse se fait progressivement, sans ligne dure visible, ce qui allonge naturellement la durée entre deux retouches.</p>
       </div>
@@ -396,8 +396,19 @@
   }
   const hamburger = document.getElementById('hamburger');
   const mobileMenu = document.getElementById('mobileMenu');
-  hamburger.addEventListener('click', () => mobileMenu.classList.toggle('open'));
-  mobileMenu.querySelectorAll('a').forEach(l => l.addEventListener('click', () => mobileMenu.classList.remove('open')));
+  hamburger.addEventListener('click', () => {
+    const isOpen = mobileMenu.classList.toggle('open');
+    hamburger.setAttribute('aria-expanded', String(isOpen));
+    hamburger.setAttribute('aria-label', isOpen ? 'Fermer le menu' : 'Ouvrir le menu');
+  });
+
+  mobileMenu.querySelectorAll('a').forEach(link => {
+    link.addEventListener('click', () => {
+      mobileMenu.classList.remove('open');
+      hamburger.setAttribute('aria-expanded', 'false');
+      hamburger.setAttribute('aria-label', 'Ouvrir le menu');
+    });
+  });
 </script>
 
 <div class="mobile-cta" id="mobileCta" aria-label="Actions rapides">

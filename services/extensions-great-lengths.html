@@ -118,8 +118,8 @@
     <span>03 85 93 09 30</span>
   </a>
   <a href="https://www.planity.com/prestige-coiffure-71100-chalon-sur-saone?utm_source=site&utm_medium=nav&utm_campaign=rdv_2026" target="_blank" rel="noopener noreferrer" class="cta-btn nav-cta" data-track="cta-book-nav">Prendre RDV</a>
-  <button class="hamburger" id="hamburger" aria-label="Menu">
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+  <button class="hamburger" id="hamburger" type="button" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="mobileMenu">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
       <line x1="3" y1="7" x2="21" y2="7"/>
       <line x1="3" y1="17" x2="21" y2="17"/>
     </svg>
@@ -263,22 +263,22 @@
     <div class="service-benefits-label">Les bienfaits</div>
     <div class="service-benefits-grid">
       <div class="service-benefit-card">
-        <svg class="service-benefit-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        <svg class="service-benefit-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
         <div class="service-benefit-title">Pose la plus respectueuse du cheveu naturel</div>
         <p class="service-benefit-text">La technologie Great Lengths à basse température préserve la structure de votre cheveu naturel. Pas d'arrachage, pas de fragilisation — une fixation douce et réversible.</p>
       </div>
       <div class="service-benefit-card">
-        <svg class="service-benefit-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/></svg>
+        <svg class="service-benefit-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/></svg>
         <div class="service-benefit-title">Tenue 3 à 6 mois</div>
         <p class="service-benefit-text">Un investissement qui s'étale dans le temps. Avec un entretien adapté, vos extensions restent belles et naturelles plusieurs mois sans nécessiter d'intervention.</p>
       </div>
       <div class="service-benefit-card">
-        <svg class="service-benefit-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M10 14a4 4 0 006 0l3-3a4 4 0 00-6-6L11.5 6.5"/><path d="M14 10a4 4 0 00-6 0L5 13a4 4 0 006 6L12.5 17.5"/></svg>
+        <svg class="service-benefit-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M10 14a4 4 0 006 0l3-3a4 4 0 00-6-6L11.5 6.5"/><path d="M14 10a4 4 0 00-6 0L5 13a4 4 0 006 6L12.5 17.5"/></svg>
         <div class="service-benefit-title">Choix multi-nuances et longueurs</div>
         <p class="service-benefit-text">Great Lengths propose des centaines de nuances et plusieurs longueurs disponibles. Nous pouvons combiner plusieurs tons pour un résultat parfaitement naturel ou légèrement contrasté.</p>
       </div>
       <div class="service-benefit-card">
-        <svg class="service-benefit-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 6h18M3 10h18M3 14h18M3 18h10"/></svg>
+        <svg class="service-benefit-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M3 6h18M3 10h18M3 14h18M3 18h10"/></svg>
         <div class="service-benefit-title">Reposable après dépose</div>
         <p class="service-benefit-text">Les mèches Great Lengths en bon état peuvent être récupérées lors de la dépose et reposées, ce qui permet d'optimiser le coût sur le long terme.</p>
       </div>
@@ -389,8 +389,19 @@
   }
   const hamburger = document.getElementById('hamburger');
   const mobileMenu = document.getElementById('mobileMenu');
-  hamburger.addEventListener('click', () => mobileMenu.classList.toggle('open'));
-  mobileMenu.querySelectorAll('a').forEach(l => l.addEventListener('click', () => mobileMenu.classList.remove('open')));
+  hamburger.addEventListener('click', () => {
+    const isOpen = mobileMenu.classList.toggle('open');
+    hamburger.setAttribute('aria-expanded', String(isOpen));
+    hamburger.setAttribute('aria-label', isOpen ? 'Fermer le menu' : 'Ouvrir le menu');
+  });
+
+  mobileMenu.querySelectorAll('a').forEach(link => {
+    link.addEventListener('click', () => {
+      mobileMenu.classList.remove('open');
+      hamburger.setAttribute('aria-expanded', 'false');
+      hamburger.setAttribute('aria-label', 'Ouvrir le menu');
+    });
+  });
 </script>
 
 <div class="mobile-cta" id="mobileCta" aria-label="Actions rapides">

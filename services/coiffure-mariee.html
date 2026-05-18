@@ -125,8 +125,8 @@
     <span>03 85 93 09 30</span>
   </a>
   <a href="https://www.planity.com/prestige-coiffure-71100-chalon-sur-saone?utm_source=site&utm_medium=nav&utm_campaign=rdv_2026" target="_blank" rel="noopener noreferrer" class="cta-btn nav-cta" data-track="cta-book-nav">Prendre RDV</a>
-  <button class="hamburger" id="hamburger" aria-label="Menu">
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+  <button class="hamburger" id="hamburger" type="button" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="mobileMenu">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
       <line x1="3" y1="7" x2="21" y2="7"/>
       <line x1="3" y1="17" x2="21" y2="17"/>
     </svg>
@@ -263,22 +263,22 @@
     <div class="service-benefits-label">Nos engagements</div>
     <div class="service-benefits-grid">
       <div class="service-benefit-card">
-        <svg class="service-benefit-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M9 12l2 2 4-4"/><path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>
+        <svg class="service-benefit-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M9 12l2 2 4-4"/><path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>
         <div class="service-benefit-title">Essai inclus</div>
         <p class="service-benefit-text">L'essai fait partie du tarif — pas de supplément. Vous arrivez le jour J sans stress, avec la certitude de votre coiffure.</p>
       </div>
       <div class="service-benefit-card">
-        <svg class="service-benefit-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z"/><path d="M12 8v4l3 3"/></svg>
+        <svg class="service-benefit-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z"/><path d="M12 8v4l3 3"/></svg>
         <div class="service-benefit-title">Coiffure sur-mesure</div>
         <p class="service-benefit-text">Chaque coiffure est pensée pour votre visage, votre robe et votre personnalité. Aucun modèle copié-collé.</p>
       </div>
       <div class="service-benefit-card">
-        <svg class="service-benefit-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        <svg class="service-benefit-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
         <div class="service-benefit-title">Déplacement possible</div>
         <p class="service-benefit-text">Nous pouvons intervenir à domicile ou au lieu de réception dans un rayon de 30 km autour de Chalon-sur-Saône.</p>
       </div>
       <div class="service-benefit-card">
-        <svg class="service-benefit-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+        <svg class="service-benefit-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
         <div class="service-benefit-title">Tranquillité d'esprit</div>
         <p class="service-benefit-text">De la réservation au grand jour, vous avez un interlocuteur unique. Chaque détail est anticipé pour que vous ne pensiez qu'à profiter.</p>
       </div>
@@ -391,8 +391,19 @@
   // Mobile menu
   const hamburger = document.getElementById('hamburger');
   const mobileMenu = document.getElementById('mobileMenu');
-  hamburger.addEventListener('click', () => mobileMenu.classList.toggle('open'));
-  mobileMenu.querySelectorAll('a').forEach(l => l.addEventListener('click', () => mobileMenu.classList.remove('open')));
+  hamburger.addEventListener('click', () => {
+    const isOpen = mobileMenu.classList.toggle('open');
+    hamburger.setAttribute('aria-expanded', String(isOpen));
+    hamburger.setAttribute('aria-label', isOpen ? 'Fermer le menu' : 'Ouvrir le menu');
+  });
+
+  mobileMenu.querySelectorAll('a').forEach(link => {
+    link.addEventListener('click', () => {
+      mobileMenu.classList.remove('open');
+      hamburger.setAttribute('aria-expanded', 'false');
+      hamburger.setAttribute('aria-label', 'Ouvrir le menu');
+    });
+  });
 </script>
 
 <div class="mobile-cta" id="mobileCta" aria-label="Actions rapides">

@@ -84,7 +84,7 @@
     <li><a href="../index.html#prestations">Prestations</a></li>
     <li><a href="../index.html#marques">Marques</a></li>
     <li><a href="../index.html#equipe">L'équipe</a></li>
-    <li><a href="../blog.html" class="active">Journal</a></li>
+    <li><a href="../blog.html" class="active" aria-current="page">Journal</a></li>
     <li><a href="../index.html#avis">Avis</a></li>
     <li><a href="../index.html#contact">Contact</a></li>
   </ul>
@@ -104,8 +104,8 @@
     <span>03 85 93 09 30</span>
   </a>
   <a href="https://www.planity.com/prestige-coiffure-71100-chalon-sur-saone?utm_source=site&utm_medium=nav&utm_campaign=rdv_2026" target="_blank" rel="noopener noreferrer" class="cta-btn nav-cta" data-track="cta-book-nav">Prendre RDV</a>
-  <button class="hamburger" id="hamburger" aria-label="Menu">
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+  <button class="hamburger" id="hamburger" type="button" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="mobileMenu">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
       <line x1="3" y1="7" x2="21" y2="7"/>
       <line x1="3" y1="17" x2="21" y2="17"/>
     </svg>
@@ -491,9 +491,18 @@
   // Menu mobile
   const hamburger = document.getElementById('hamburger');
   const mobileMenu = document.getElementById('mobileMenu');
-  hamburger.addEventListener('click', () => mobileMenu.classList.toggle('open'));
+  hamburger.addEventListener('click', () => {
+    const isOpen = mobileMenu.classList.toggle('open');
+    hamburger.setAttribute('aria-expanded', String(isOpen));
+    hamburger.setAttribute('aria-label', isOpen ? 'Fermer le menu' : 'Ouvrir le menu');
+  });
+
   mobileMenu.querySelectorAll('a').forEach(link => {
-    link.addEventListener('click', () => mobileMenu.classList.remove('open'));
+    link.addEventListener('click', () => {
+      mobileMenu.classList.remove('open');
+      hamburger.setAttribute('aria-expanded', 'false');
+      hamburger.setAttribute('aria-label', 'Ouvrir le menu');
+    });
   });
 
   // Reveal au scroll

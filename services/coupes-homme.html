@@ -118,8 +118,8 @@
     <span>03 85 93 09 30</span>
   </a>
   <a href="https://www.planity.com/prestige-coiffure-71100-chalon-sur-saone?utm_source=site&utm_medium=nav&utm_campaign=rdv_2026" target="_blank" rel="noopener noreferrer" class="cta-btn nav-cta" data-track="cta-book-nav">Prendre RDV</a>
-  <button class="hamburger" id="hamburger" aria-label="Menu">
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+  <button class="hamburger" id="hamburger" type="button" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="mobileMenu">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
       <line x1="3" y1="7" x2="21" y2="7"/>
       <line x1="3" y1="17" x2="21" y2="17"/>
     </svg>
@@ -256,22 +256,22 @@
     <div class="service-benefits-label">Les bienfaits</div>
     <div class="service-benefits-grid">
       <div class="service-benefit-card">
-        <svg class="service-benefit-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 15h20v3a2 2 0 01-2 2H4a2 2 0 01-2-2v-3z"/><line x1="6" y1="15" x2="6" y2="10"/><line x1="9" y1="15" x2="9" y2="7"/><line x1="12" y1="15" x2="12" y2="7"/><line x1="15" y1="15" x2="15" y2="7"/><line x1="18" y1="15" x2="18" y2="10"/></svg>
+        <svg class="service-benefit-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M2 15h20v3a2 2 0 01-2 2H4a2 2 0 01-2-2v-3z"/><line x1="6" y1="15" x2="6" y2="10"/><line x1="9" y1="15" x2="9" y2="7"/><line x1="12" y1="15" x2="12" y2="7"/><line x1="15" y1="15" x2="15" y2="7"/><line x1="18" y1="15" x2="18" y2="10"/></svg>
         <div class="service-benefit-title">Coupe précise et nette</div>
         <p class="service-benefit-text">Chaque contour est travaillé avec soin. Que ce soit un dégradé américain ou une coupe plus texturée, la précision du geste est au cœur de la prestation.</p>
       </div>
       <div class="service-benefit-card">
-        <svg class="service-benefit-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/></svg>
+        <svg class="service-benefit-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/></svg>
         <div class="service-benefit-title">Style affirmé</div>
         <p class="service-benefit-text">Un style qui vous ressemble et que vous pouvez reproduire chez vous sans efforts. La consultation initiale garantit un résultat aligné avec votre personnalité.</p>
       </div>
       <div class="service-benefit-card">
-        <svg class="service-benefit-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        <svg class="service-benefit-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
         <div class="service-benefit-title">Produits grooming professionnels</div>
         <p class="service-benefit-text">American Crew, référence mondiale du grooming masculin. Des produits pensés pour tenir, nourrir et protéger sans alourdir ni assécher le cheveu.</p>
       </div>
       <div class="service-benefit-card">
-        <svg class="service-benefit-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 6h18M3 10h18M3 14h18M3 18h10"/></svg>
+        <svg class="service-benefit-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M3 6h18M3 10h18M3 14h18M3 18h10"/></svg>
         <div class="service-benefit-title">Conseil entretien à la maison</div>
         <p class="service-benefit-text">Vous repartez avec les bons gestes et les bons produits pour entretenir votre coupe au quotidien entre deux rendez-vous.</p>
       </div>
@@ -382,8 +382,19 @@
   }
   const hamburger = document.getElementById('hamburger');
   const mobileMenu = document.getElementById('mobileMenu');
-  hamburger.addEventListener('click', () => mobileMenu.classList.toggle('open'));
-  mobileMenu.querySelectorAll('a').forEach(l => l.addEventListener('click', () => mobileMenu.classList.remove('open')));
+  hamburger.addEventListener('click', () => {
+    const isOpen = mobileMenu.classList.toggle('open');
+    hamburger.setAttribute('aria-expanded', String(isOpen));
+    hamburger.setAttribute('aria-label', isOpen ? 'Fermer le menu' : 'Ouvrir le menu');
+  });
+
+  mobileMenu.querySelectorAll('a').forEach(link => {
+    link.addEventListener('click', () => {
+      mobileMenu.classList.remove('open');
+      hamburger.setAttribute('aria-expanded', 'false');
+      hamburger.setAttribute('aria-label', 'Ouvrir le menu');
+    });
+  });
 </script>
 
 <div class="mobile-cta" id="mobileCta" aria-label="Actions rapides">
