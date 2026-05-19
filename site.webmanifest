@@ -1,0 +1,13 @@
+{
+  "name": "Prestige Coiffure — Chalon-sur-Saône",
+  "short_name": "Prestige",
+  "description": "Salon de coiffure indépendant à Chalon-sur-Saône depuis 2009.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F4EFE6",
+  "theme_color": "#0F0F0F",
+  "icons": [
+    { "src": "assets/favicon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "assets/logo.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
