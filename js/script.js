@@ -1,26 +1,55 @@
 // Entrée scénarisée du titre hero
 (function animateHeroTitle() {
+  const STAGGER_MS = 120;       // délai entre chaque ligne hero
+  const REVEAL_DURATION = 800;  // durée de la transition de révélation (ms)
+
   const title = document.querySelector('.hero-title');
   if (!title) return;
 
   // Respecter prefers-reduced-motion
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
-  const html = title.innerHTML.replace('<br>', '|||');
-  const parts = html.split('|||');
-  if (parts.length < 2) return;
+  // Découper les nœuds enfants sur les <br> — sans toucher à innerHTML
+  function splitHeroTitleByBr(titleEl) {
+    const lines = [];
+    let currentLine = document.createDocumentFragment();
 
-  title.innerHTML = parts.map(p =>
-    `<span class="hero-line" style="display:block;opacity:0;transform:translate(-12px,8px);will-change:opacity,transform">${p}</span>`
-  ).join('');
+    titleEl.childNodes.forEach(node => {
+      if (node.nodeName === 'BR') {
+        lines.push(currentLine);
+        currentLine = document.createDocumentFragment();
+      } else {
+        currentLine.appendChild(node.cloneNode(true));
+      }
+    });
+    if (currentLine.hasChildNodes()) lines.push(currentLine);
+
+    // Vider le titre et le re-remplir avec des <span>
+    titleEl.textContent = '';
+    lines.forEach((fragment, i) => {
+      const span = document.createElement('span');
+      span.className = 'hero-line';
+      span.style.display = 'block';
+      span.style.opacity = '0';
+      span.style.transform = 'translate(-12px, 8px)';
+      span.style.willChange = 'opacity, transform';
+      span.style.transitionDelay = (i * STAGGER_MS) + 'ms';
+      span.appendChild(fragment);
+      titleEl.appendChild(span);
+    });
+
+    return titleEl.querySelectorAll('.hero-line');
+  }
+
+  const lines = splitHeroTitleByBr(title);
+  if (lines.length < 2) return;
 
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
-      title.querySelectorAll('.hero-line').forEach((line, i) => {
-        line.style.transitionDelay = `${i * 120}ms`;
-        line.style.transition = 'opacity 0.8s ease-out, transform 0.8s ease-out';
+      lines.forEach(line => {
+        line.style.transition = `opacity ${REVEAL_DURATION}ms ease-out, transform ${REVEAL_DURATION}ms ease-out`;
         line.style.opacity = '1';
-        line.style.transform = 'translate(0,0)';
+        line.style.transform = 'translate(0, 0)';
       });
     });
   });
