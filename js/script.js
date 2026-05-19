@@ -55,6 +55,12 @@
   });
 })();
 
+  // --- Constantes ---
+  const PARALLAX_AMOUNT      = 0.15;  // intensité du parallaxe image hero
+  const NAV_SCROLL_THRESHOLD = 30;    // px de scroll avant que la nav passe en .scrolled
+  const SMOOTH_SCROLL_OFFSET = 80;    // px d'offset pour le smooth-scroll ancres
+  const REVEAL_THRESHOLD     = 0.08;  // seuil IntersectionObserver pour les révélations
+
   // Scroll progress bar
   const scrollProgress = document.getElementById('scroll-progress');
   if (scrollProgress) {
@@ -70,7 +76,7 @@
   if (heroImg) {
     window.addEventListener('scroll', () => {
       if (window.scrollY < window.innerHeight) {
-        heroImg.style.transform = `translateY(${window.scrollY * 0.15}px)`;
+        heroImg.style.transform = `translateY(${window.scrollY * PARALLAX_AMOUNT}px)`;
       } else {
         heroImg.style.transform = '';
       }
@@ -80,7 +86,7 @@
   // Sticky nav scroll effect
   const nav = document.getElementById('topnav');
   window.addEventListener('scroll', () => {
-    nav.classList.toggle('scrolled', window.scrollY > 30);
+    nav.classList.toggle('scrolled', window.scrollY > NAV_SCROLL_THRESHOLD);
   });
 
   // Mobile menu toggle
@@ -108,8 +114,7 @@
         e.preventDefault();
         const target = document.querySelector(href);
         if (target) {
-          const offset = 80;
-          const pos = target.getBoundingClientRect().top + window.pageYOffset - offset;
+          const pos = target.getBoundingClientRect().top + window.pageYOffset - SMOOTH_SCROLL_OFFSET;
           window.scrollTo({ top: pos, behavior: 'smooth' });
         }
       }
@@ -152,6 +157,6 @@
         revealObs.unobserve(entry.target);
       }
     });
-  }, { threshold: 0.08 });
+  }, { threshold: REVEAL_THRESHOLD });
 
   document.querySelectorAll('.reveal').forEach(el => revealObs.observe(el));
