@@ -185,12 +185,12 @@
       </div>
     </div>
     <div class="filters-row">
-      <button class="filter active" data-cat="all">Tous</button>
-      <button class="filter" data-cat="soins">Soins</button>
-      <button class="filter" data-cat="tendances">Tendances</button>
-      <button class="filter" data-cat="marques">Marques</button>
-      <button class="filter" data-cat="conseils">Conseils</button>
-      <button class="filter" data-cat="salon">Vie du salon</button>
+      <button class="filter active" data-cat="all" aria-pressed="true">Tous</button>
+      <button class="filter" data-cat="soins" aria-pressed="false">Soins</button>
+      <button class="filter" data-cat="tendances" aria-pressed="false">Tendances</button>
+      <button class="filter" data-cat="marques" aria-pressed="false">Marques</button>
+      <button class="filter" data-cat="conseils" aria-pressed="false">Conseils</button>
+      <button class="filter" data-cat="salon" aria-pressed="false">Vie du salon</button>
     </div>
   </div>
 </section>
@@ -200,7 +200,7 @@
   <div class="articles-grid">
 
     <article class="article-card" data-cat="marques">
-      <a href="#" class="card-image" data-track="journal-article-open">
+      <a href="#" class="card-image" data-track="journal-article-open" aria-label="Article : Davines — la beauté responsable, expliquée simplement">
         <img src="https://images.unsplash.com/photo-1556228720-195a672e8a03?w=800&q=80" alt="Produits Davines">
         <span class="card-tag">Marques</span>
       </a>
@@ -216,7 +216,7 @@
     </article>
 
     <article class="article-card" data-cat="soins">
-      <a href="#" class="card-image" data-track="journal-article-open">
+      <a href="#" class="card-image" data-track="journal-article-open" aria-label="Article : Lissage Ybera — la promesse d'un cheveu lisse, sans formol">
         <img src="https://images.unsplash.com/photo-1605497788044-5a32c7078486?w=800&q=80" alt="Cheveux lisses brillants">
         <span class="card-tag">Soins</span>
       </a>
@@ -232,7 +232,7 @@
     </article>
 
     <article class="article-card" data-cat="soins">
-      <a href="#" class="card-image" data-track="journal-article-open">
+      <a href="#" class="card-image" data-track="journal-article-open" aria-label="Article : Prothèse capillaire — retrouver confiance, en toute discrétion">
         <img src="https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=800&q=80" alt="Personne souriante avec une coiffure soignée">
         <span class="card-tag">Soins</span>
       </a>
@@ -248,7 +248,7 @@
     </article>
 
     <article class="article-card" data-cat="conseils">
-      <a href="#" class="card-image" data-track="journal-article-open">
+      <a href="#" class="card-image" data-track="journal-article-open" aria-label="Article : Cheveux bouclés — la routine que recommandent nos coiffeuses">
         <img src="https://images.unsplash.com/photo-1605980776566-0486c3ac7617?w=800&q=80" alt="Cheveux bouclés">
         <span class="card-tag">Conseils</span>
       </a>
@@ -264,7 +264,7 @@
     </article>
 
     <article class="article-card" data-cat="tendances">
-      <a href="#" class="card-image" data-track="journal-article-open">
+      <a href="#" class="card-image" data-track="journal-article-open" aria-label="Article : Coupe homme — ce qui se porte cet automne 2026">
         <img src="https://images.unsplash.com/photo-1622286342621-4bd786c2447c?w=800&q=80" alt="Coupe homme moderne">
         <span class="card-tag">Tendances</span>
       </a>
@@ -280,7 +280,7 @@
     </article>
 
     <article class="article-card" data-cat="tendances">
-      <a href="#" class="card-image" data-track="journal-article-open">
+      <a href="#" class="card-image" data-track="journal-article-open" aria-label="Article : Couleur végétale — qui peut tenter l'expérience ?">
         <img src="https://images.unsplash.com/photo-1595163205702-ffd66a13b9f8?w=800&q=80" alt="Couleur végétale">
         <span class="card-tag">Tendances</span>
       </a>
@@ -296,7 +296,7 @@
     </article>
 
     <article class="article-card" data-cat="salon">
-      <a href="#" class="card-image" data-track="journal-article-open">
+      <a href="#" class="card-image" data-track="journal-article-open" aria-label="Article : Réouverture — huit mois de travaux racontés en images">
         <img src="https://images.unsplash.com/photo-1560066984-138dadb4c035?w=800&q=80" alt="Intérieur du salon">
         <span class="card-tag">Vie du salon</span>
       </a>
@@ -312,7 +312,7 @@
     </article>
 
     <article class="article-card" data-cat="salon">
-      <a href="#" class="card-image" data-track="journal-article-open">
+      <a href="#" class="card-image" data-track="journal-article-open" aria-label="Article : Nos coiffeurs vous présentent leurs gestes signatures">
         <img src="https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?w=800&q=80" alt="Équipe de coiffeurs">
         <span class="card-tag">Vie du salon</span>
       </a>
@@ -469,8 +469,12 @@
 
   filterBtns.forEach(btn => {
     btn.addEventListener('click', () => {
-      filterBtns.forEach(b => b.classList.remove('active'));
+      filterBtns.forEach(b => {
+        b.classList.remove('active');
+        b.setAttribute('aria-pressed', 'false');
+      });
       btn.classList.add('active');
+      btn.setAttribute('aria-pressed', 'true');
       currentCat = btn.dataset.cat;
       applyFilters();
     });

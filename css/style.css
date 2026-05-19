@@ -258,7 +258,7 @@
   :root[data-theme="dark"] .theme-toggle .theme-icon-sun { display: none; }
   :root[data-theme="dark"] .theme-toggle .theme-icon-moon { display: block; }
   @media (max-width: 880px) {
-    .theme-toggle { width: 34px; height: 34px; margin-right: 8px; }
+    .theme-toggle { width: 44px; height: 44px; margin-right: 8px; }
   }
 
   .nav-call {
@@ -293,7 +293,7 @@
     background: none;
     border: none;
     cursor: pointer;
-    padding: 6px;
+    padding: 10px;
     color: var(--ink);
   }
   .hamburger svg { display: block; }
@@ -649,7 +649,7 @@
     font-family: 'JetBrains Mono', monospace;
     font-size: 10px;
     letter-spacing: 0.2em;
-    color: var(--gold-bright);
+    color: var(--ink-muted);
     flex-shrink: 0;
   }
   .service-icon { display: none; }
@@ -1501,4 +1501,72 @@
     .breadcrumb { padding-top: 80px; }
     .breadcrumb-inner { padding: 12px 18px; }
     .breadcrumb ol { font-size: 10px; }
+  }
+
+  /* ================================================================
+     DARK MODE — corrections de visibilité
+     Override pour les couleurs hardcodées et les surfaces qui restent
+     "cream" (claires) en dark mode et provoquent du light-on-light.
+     ================================================================ */
+
+  /* Textes hardcodés dans .hero-lede et .hero-badge strong */
+  :root[data-theme="dark"] .hero-lede,
+  :root[data-theme="dark"] .hero-badge strong {
+    color: var(--ink-soft);
+  }
+
+  /* Surfaces "carte" qui utilisent var(--cream) en background
+     => en dark mode on bascule sur var(--bg-soft) qui est sombre */
+  :root[data-theme="dark"] .stat-cell,
+  :root[data-theme="dark"] .marque-card,
+  :root[data-theme="dark"] .reviews-summary,
+  :root[data-theme="dark"] .review,
+  :root[data-theme="dark"] .legal-block,
+  :root[data-theme="dark"] .search-input,
+  :root[data-theme="dark"] .sort-select {
+    background: var(--bg-soft);
+  }
+
+  /* CTA primary (sage) — fond sage clair en dark mode, besoin de texte sombre */
+  :root[data-theme="dark"] .cta-btn {
+    color: #171511;
+  }
+  /* CTA "dark" — bg --ink devient clair en dark, texte cream reste clair (invisible).
+     On force un bg cream et texte sombre. */
+  :root[data-theme="dark"] .cta-btn.dark {
+    background: var(--cream);
+    color: #171511;
+  }
+  :root[data-theme="dark"] .cta-btn.dark:hover {
+    background: var(--ink-soft);
+    color: #171511;
+  }
+  /* CTA gold — fond plus lumineux en dark, texte cream peu lisible. Texte sombre. */
+  :root[data-theme="dark"] .cta-btn.gold {
+    color: #171511;
+  }
+  /* CTA ghost — hover utilise bg --ink (clair en dark) + color --cream (clair) = invisible */
+  :root[data-theme="dark"] .cta-ghost::before {
+    background: var(--cream);
+  }
+  :root[data-theme="dark"] .cta-ghost:hover {
+    color: #171511;
+  }
+
+  /* Mobile CTA "book" (gold) — pareil */
+  :root[data-theme="dark"] .mobile-cta-book {
+    color: #171511;
+  }
+  :root[data-theme="dark"] .mobile-cta-book:hover {
+    color: #171511;
+  }
+
+  /* Filtre blog actif — bg --ink clair en dark + texte cream clair = invisible */
+  :root[data-theme="dark"] .filter.active {
+    background: var(--cream);
+    color: #171511;
+    border-color: var(--cream);
+  }
+  :root[data-theme="dark"] .filter:hover {
+    background: rgba(255, 255, 255, 0.06);
   }

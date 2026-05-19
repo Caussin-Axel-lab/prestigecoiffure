@@ -36,7 +36,7 @@
 .article-breadcrumb a:hover { color: var(--ink); }
 
 .article-breadcrumb-sep {
-  color: var(--gold-bright);
+  color: var(--ink-muted);
 }
 
 .article-category {
@@ -154,7 +154,7 @@
 }
 
 .article-meta-dot {
-  color: var(--gold-bright);
+  color: var(--ink-muted);
 }
 
 /* ============ HERO IMAGE ============ */

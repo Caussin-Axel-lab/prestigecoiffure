@@ -179,7 +179,7 @@
 
 .featured-meta .dot {
   margin: 0 8px;
-  color: var(--gold-bright);
+  color: var(--ink-muted);
 }
 
 .featured-title {
@@ -489,7 +489,7 @@
 
 .card-meta .dot {
   margin: 0 6px;
-  color: var(--gold-bright);
+  color: var(--ink-muted);
 }
 
 .articles-empty {
