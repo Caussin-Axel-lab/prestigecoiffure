@@ -484,33 +484,9 @@
   </div>
 </footer>
 
+<script src="../js/page-common.js" defer></script>
+
 <script>
-  // Scroll progress
-  const scrollProgress = document.getElementById('scroll-progress');
-  if (scrollProgress) {
-    window.addEventListener('scroll', () => {
-      const total = document.documentElement.scrollHeight - window.innerHeight;
-      scrollProgress.style.width = total > 0 ? (window.scrollY / total) * 100 + '%' : '0%';
-    }, { passive: true });
-  }
-
-  // Menu mobile
-  const hamburger = document.getElementById('hamburger');
-  const mobileMenu = document.getElementById('mobileMenu');
-  hamburger.addEventListener('click', () => {
-    const isOpen = mobileMenu.classList.toggle('open');
-    hamburger.setAttribute('aria-expanded', String(isOpen));
-    hamburger.setAttribute('aria-label', isOpen ? 'Fermer le menu' : 'Ouvrir le menu');
-  });
-
-  mobileMenu.querySelectorAll('a').forEach(link => {
-    link.addEventListener('click', () => {
-      mobileMenu.classList.remove('open');
-      hamburger.setAttribute('aria-expanded', 'false');
-      hamburger.setAttribute('aria-label', 'Ouvrir le menu');
-    });
-  });
-
   // Reveal au scroll
   const revealEls = document.querySelectorAll('.article-card, .pull-quote, .callout-box, .article-author-card, .article-image');
   const obs = new IntersectionObserver(entries => {
