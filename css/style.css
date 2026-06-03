@@ -1232,6 +1232,85 @@
     filter: grayscale(20%) contrast(1.02);
   }
 
+  /* === PARKING INFO === */
+  .parking-info {
+    margin-top: 24px;
+    padding: 24px 26px;
+    background: var(--bg-soft);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+  }
+  .parking-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--sage-deep);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .parking-label::before {
+    content: '';
+    width: 18px;
+    height: 1px;
+    background: var(--gold-bright);
+  }
+  .parking-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .parking-list li {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .parking-list li:first-child { padding-top: 0; }
+  .parking-list li:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+  .parking-name {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--ink);
+    line-height: 1.3;
+  }
+  .parking-meta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+  }
+  .parking-link {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    text-decoration: none;
+    color: inherit;
+    transition: transform 0.2s ease;
+  }
+  .parking-link:hover { transform: translateX(3px); }
+  .parking-link:hover .parking-name { color: var(--sage-deep); }
+  .parking-link:hover .parking-arrow { transform: translateX(3px); color: var(--gold-bright); }
+  .parking-arrow {
+    display: inline-block;
+    margin-left: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    color: var(--ink-muted);
+    transition: transform 0.25s ease, color 0.25s ease;
+  }
+
   /* === CTA BAND === */
   .cta-band {
     background: var(--bg-dark);
