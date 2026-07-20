@@ -6,9 +6,13 @@ desktop.ini
 # Editor
 .vscode/
 .idea/
+.vs/
 *.swp
 *.swo
 *~
+
+# Brainstorm / visual companion scratch
+.superpowers/brainstorm/
 
 # Build artifacts (pour le futur)
 node_modules/
