@@ -349,15 +349,6 @@
     gap: 60px;
     align-items: center;
   }
-  @media (max-width: 900px) {
-    .hero-content { grid-template-columns: 1fr; gap: 40px; }
-    .hero-image {
-      order: -1;
-      width: 100%;
-      max-height: none;
-      aspect-ratio: 8/5;
-    }
-  }
   .hero-text { position: relative; z-index: 2; }
   .hero-eyebrow {
     font-family: 'JetBrains Mono', monospace;
@@ -476,6 +467,15 @@
     border-radius: 4px;
     background: linear-gradient(135deg, #3a4a35, #1a2010);
     box-shadow: 0 28px 70px rgba(20,17,12,.16);
+  }
+  @media (max-width: 900px) {
+    .hero-content { grid-template-columns: 1fr; gap: 40px; }
+    .hero-image {
+      order: -1;
+      width: 100%;
+      max-height: none;
+      aspect-ratio: 8/5;
+    }
   }
   .hero-image picture,
   .salon-img picture,
