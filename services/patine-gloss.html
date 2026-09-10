@@ -187,8 +187,13 @@
 </section>
 
 <!-- HERO IMAGE -->
-<figure class="service-hero-image">
-  <img src="https://images.unsplash.com/photo-1595163205702-ffd66a13b9f8?w=1600&q=85" alt="Patine en salon — neutralisation des reflets et brillance" loading="eager">
+<figure class="service-hero-image service-hero-image--cinematic">
+  <picture>
+    <source media="(max-width: 720px)" srcset="../photosalon/web/service-patine-gloss-mobile.webp" type="image/webp">
+    <source media="(max-width: 720px)" srcset="../photosalon/web/service-patine-gloss-mobile.jpg" type="image/jpeg">
+    <source srcset="../photosalon/web/service-patine-gloss-desktop.webp" type="image/webp">
+    <img src="../photosalon/web/service-patine-gloss-desktop.jpg" width="1920" height="1080" alt="Chevelure brune brillante aux reflets cuivrés" loading="eager" fetchpriority="high">
+  </picture>
 </figure>
 
 <!-- CONTENT -->

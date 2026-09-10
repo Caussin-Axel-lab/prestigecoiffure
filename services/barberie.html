@@ -187,8 +187,13 @@
 </section>
 
 <!-- HERO IMAGE -->
-<figure class="service-hero-image">
-  <img src="https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=1600&q=85" alt="Taille de barbe en salon — barberie professionnelle" loading="eager">
+<figure class="service-hero-image service-hero-image--cinematic">
+  <picture>
+    <source media="(max-width: 720px)" srcset="../photosalon/web/service-barberie-mobile.webp" type="image/webp">
+    <source media="(max-width: 720px)" srcset="../photosalon/web/service-barberie-mobile.jpg" type="image/jpeg">
+    <source srcset="../photosalon/web/service-barberie-desktop.webp" type="image/webp">
+    <img src="../photosalon/web/service-barberie-desktop.jpg" width="1920" height="1080" alt="Portrait en noir et blanc d’un homme aux cheveux courts et à la barbe fournie" loading="eager" fetchpriority="high">
+  </picture>
 </figure>
 
 <!-- CONTENT -->

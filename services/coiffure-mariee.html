@@ -194,8 +194,13 @@
 </section>
 
 <!-- HERO IMAGE -->
-<figure class="service-hero-image">
-  <img src="https://images.unsplash.com/photo-1595587637401-83ff822bd63e?w=1600&q=85" alt="Coiffure de mariée élégante — chignon et fleurs" loading="eager">
+<figure class="service-hero-image service-hero-image--cinematic">
+  <picture>
+    <source media="(max-width: 720px)" srcset="../photosalon/web/service-coiffure-mariee-mobile.webp" type="image/webp">
+    <source media="(max-width: 720px)" srcset="../photosalon/web/service-coiffure-mariee-mobile.jpg" type="image/jpeg">
+    <source srcset="../photosalon/web/service-coiffure-mariee-desktop.webp" type="image/webp">
+    <img src="../photosalon/web/service-coiffure-mariee-desktop.jpg" width="1920" height="1080" alt="Chignon de mariée tressé orné de petites fleurs blanches" loading="eager" fetchpriority="high">
+  </picture>
 </figure>
 
 <!-- CONTENT -->

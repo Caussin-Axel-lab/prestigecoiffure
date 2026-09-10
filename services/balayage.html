@@ -187,8 +187,13 @@
 </section>
 
 <!-- HERO IMAGE -->
-<figure class="service-hero-image">
-  <img src="https://images.unsplash.com/photo-1605980776566-0486c3ac7617?w=1600&q=85" alt="Balayage en salon — reflets naturels sur cheveux" loading="eager">
+<figure class="service-hero-image service-hero-image--cinematic">
+  <picture>
+    <source media="(max-width: 720px)" srcset="../photosalon/web/service-balayage-mobile.webp" type="image/webp">
+    <source media="(max-width: 720px)" srcset="../photosalon/web/service-balayage-mobile.jpg" type="image/jpeg">
+    <source srcset="../photosalon/web/service-balayage-desktop.webp" type="image/webp">
+    <img src="../photosalon/web/service-balayage-desktop.jpg" width="1920" height="1080" alt="Cheveux longs avec un balayage blond aux reflets naturels" loading="eager" fetchpriority="high">
+  </picture>
 </figure>
 
 <!-- CONTENT -->
