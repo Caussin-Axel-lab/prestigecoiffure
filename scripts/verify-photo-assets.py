@@ -4,10 +4,13 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import importlib.util
 import json
 import re
-import subprocess
 import sys
+import tempfile
+import warnings
 from collections import Counter
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
@@ -19,6 +22,8 @@ from PIL import Image, UnidentifiedImageError
 
 ROOT = Path(__file__).resolve().parent.parent
 MAX_IMAGE_BYTES = 900_000
+MAX_DECODE_PIXELS = 40_000_000
+MAX_IMAGE_DIMENSION = 10_000
 EXPECTED_ROLE_SLUGS = (
     "hero-salon",
     "salon-lounge",
@@ -80,12 +85,18 @@ ACTIVE_HTML_FILES = (
 REMOTE_SCHEMES = {"http", "https", "data"}
 
 
+class LocalPathError(ValueError):
+    """A local URL path is unsafe or differs from the on-disk spelling."""
+
+
 @dataclass
 class Picture:
     sources: list[dict[str, str]] = field(default_factory=list)
     image: dict[str, str] | None = None
     images: list[dict[str, str]] = field(default_factory=list)
     parent_figure: Figure | None = None
+    inside_template: bool = False
+    line: int = 0
 
 
 @dataclass
@@ -93,6 +104,14 @@ class Figure:
     attributes: dict[str, str]
     images: list[dict[str, str]] = field(default_factory=list)
     pictures: list[Picture] = field(default_factory=list)
+    inside_template: bool = False
+    line: int = 0
+
+
+@dataclass(frozen=True)
+class SrcsetCandidate:
+    url: str
+    descriptor: str
 
 
 class PhotoHTMLParser(HTMLParser):
@@ -103,63 +122,124 @@ class PhotoHTMLParser(HTMLParser):
         self.references: list[str] = []
         self.pictures: list[Picture] = []
         self.figures: list[Figure] = []
-        self._picture_stack: list[Picture] = []
-        self._figure_stack: list[Figure] = []
+        self.diagnostics: list[str] = []
+        self._containers: list[tuple[str, Figure | Picture | None, int]] = []
 
     @staticmethod
     def _attributes(attributes: list[tuple[str, str | None]]) -> dict[str, str]:
         return {name.lower(): value or "" for name, value in attributes}
 
+    def _current(self, tag: str) -> Figure | Picture | None:
+        for container_tag, value, _line in reversed(self._containers):
+            if container_tag == tag:
+                return value
+        return None
+
+    def _inside_template(self) -> bool:
+        return any(tag == "template" for tag, _value, _line in self._containers)
+
     def handle_starttag(
         self, tag: str, attributes: list[tuple[str, str | None]]
-    ) -> None:
+    ) -> bool:
         tag = tag.lower()
+        lowered_names = [name.casefold() for name, _value in attributes]
+        duplicate_names = sorted(
+            {name for name in lowered_names if lowered_names.count(name) > 1}
+        )
+        if duplicate_names:
+            line, _offset = self.getpos()
+            for name in duplicate_names:
+                self.diagnostics.append(
+                    f"{line}: <{tag}> duplicate attribute {name!r}"
+                )
+            return False
         attrs = self._attributes(attributes)
         source = attrs.get("src")
         if source:
             self.references.append(source)
         if attrs.get("srcset"):
-            self.references.extend(parse_srcset(attrs["srcset"]))
+            self.references.extend(
+                candidate.url for candidate in parse_srcset_candidates(attrs["srcset"])
+            )
 
         if tag == "figure":
-            figure = Figure(attributes=attrs)
+            line, _offset = self.getpos()
+            figure = Figure(
+                attributes=attrs,
+                inside_template=self._inside_template(),
+                line=line,
+            )
             self.figures.append(figure)
-            self._figure_stack.append(figure)
+            self._containers.append((tag, figure, line))
         elif tag == "picture":
-            parent = self._figure_stack[-1] if self._figure_stack else None
-            picture = Picture(parent_figure=parent)
+            line, _offset = self.getpos()
+            parent = self._current("figure")
+            if parent is not None and not isinstance(parent, Figure):
+                parent = None
+            picture = Picture(
+                parent_figure=parent,
+                inside_template=self._inside_template(),
+                line=line,
+            )
             self.pictures.append(picture)
-            self._picture_stack.append(picture)
+            self._containers.append((tag, picture, line))
             if parent is not None:
                 parent.pictures.append(picture)
-        elif tag == "source" and self._picture_stack:
-            self._picture_stack[-1].sources.append(attrs)
+        elif tag == "template":
+            line, _offset = self.getpos()
+            self._containers.append((tag, None, line))
+        elif tag == "source":
+            picture = self._current("picture")
+            if isinstance(picture, Picture):
+                picture.sources.append(attrs)
         elif tag == "img":
-            if self._picture_stack:
-                picture = self._picture_stack[-1]
+            picture = self._current("picture")
+            if isinstance(picture, Picture):
                 picture.images.append(attrs)
                 if picture.image is None:
                     picture.image = attrs
-            if self._figure_stack:
-                self._figure_stack[-1].images.append(attrs)
+            figure = self._current("figure")
+            if isinstance(figure, Figure):
+                figure.images.append(attrs)
+        return True
 
     def handle_startendtag(
         self, tag: str, attributes: list[tuple[str, str | None]]
     ) -> None:
-        self.handle_starttag(tag, attributes)
-        self.handle_endtag(tag)
+        if self.handle_starttag(tag, attributes):
+            self.handle_endtag(tag)
 
     def handle_endtag(self, tag: str) -> None:
         tag = tag.lower()
-        if tag == "picture" and self._picture_stack:
-            self._picture_stack.pop()
-        elif tag == "figure" and self._figure_stack:
-            self._figure_stack.pop()
+        if tag not in {"template", "figure", "picture"}:
+            return
+        matching = [
+            index
+            for index, (container_tag, _value, _line) in enumerate(self._containers)
+            if container_tag == tag
+        ]
+        if not matching:
+            line, _offset = self.getpos()
+            self.diagnostics.append(f"{line}: unexpected </{tag}>")
+            return
+        index = matching[-1]
+        if index != len(self._containers) - 1:
+            line, _offset = self.getpos()
+            open_tag = self._containers[-1][0]
+            self.diagnostics.append(
+                f"{line}: malformed nesting: </{tag}> closes before <{open_tag}>"
+            )
+        del self._containers[index:]
+
+    def finalize(self) -> None:
+        for tag, _value, line in self._containers:
+            self.diagnostics.append(f"{line}: unclosed <{tag}>")
+        self._containers.clear()
 
 
-def parse_srcset(value: str) -> list[str]:
-    """Return URLs from a srcset while retaining commas inside data URLs."""
-    urls: list[str] = []
+def parse_srcset_candidates(value: str) -> list[SrcsetCandidate]:
+    """Return srcset URLs and their unmodified descriptor text."""
+    candidates: list[SrcsetCandidate] = []
     position = 0
     length = len(value)
     whitespace = " \t\r\n\f"
@@ -175,11 +255,10 @@ def parse_srcset(value: str) -> list[str]:
         if candidate.endswith(","):
             candidate = candidate.rstrip(",")
             if candidate:
-                urls.append(candidate)
+                candidates.append(SrcsetCandidate(candidate, ""))
             continue
-        if candidate:
-            urls.append(candidate)
 
+        descriptor_start = position
         parentheses = 0
         while position < length:
             character = value[position]
@@ -191,7 +270,17 @@ def parse_srcset(value: str) -> list[str]:
                 position += 1
                 break
             position += 1
-    return urls
+        if candidate:
+            descriptor_end = position - 1 if position and value[position - 1] == "," else position
+            candidates.append(
+                SrcsetCandidate(candidate, value[descriptor_start:descriptor_end].strip())
+            )
+    return candidates
+
+
+def parse_srcset(value: str) -> list[str]:
+    """Return URLs from a srcset while retaining commas inside data URLs."""
+    return [candidate.url for candidate in parse_srcset_candidates(value)]
 
 
 def _relative(root: Path, path: Path) -> str:
@@ -205,6 +294,49 @@ def _error_detail(root: Path, error: BaseException) -> str:
     return _sanitize_subprocess_output(root, str(error))
 
 
+def _walk_case_sensitive(root: Path, start: Path, components: list[str]) -> Path:
+    root = root.resolve()
+    current = start
+    for component in components:
+        if component in {"", "."}:
+            continue
+        if component == "..":
+            current = current.parent
+        else:
+            if current.is_dir():
+                try:
+                    entries = list(current.iterdir())
+                except OSError as error:
+                    raise LocalPathError(
+                        f"cannot inspect path component {component!r}: {error}"
+                    ) from error
+                exact = next((entry for entry in entries if entry.name == component), None)
+                if exact is not None:
+                    current = exact
+                else:
+                    folded = [
+                        entry.name
+                        for entry in entries
+                        if entry.name.casefold() == component.casefold()
+                    ]
+                    if folded:
+                        raise LocalPathError(
+                            f"case mismatch: requested {component!r}, actual {folded[0]!r}"
+                        )
+                    current = current / component
+            else:
+                current = current / component
+        try:
+            current.resolve(strict=False).relative_to(root)
+        except (OSError, RuntimeError, ValueError) as error:
+            raise LocalPathError("path escapes repository root") from error
+    return current
+
+
+def _repository_path(root: Path, relative_path: str) -> Path:
+    return _walk_case_sensitive(root, root, relative_path.split("/"))
+
+
 def _local_path(root: Path, document: Path, reference: str) -> Path | None:
     try:
         parsed = urlsplit(reference.strip())
@@ -216,14 +348,20 @@ def _local_path(root: Path, document: Path, reference: str) -> Path | None:
     if not url_path:
         return None
     if url_path.startswith("/"):
-        candidate = root / url_path.lstrip("/")
+        start = root
+        components = url_path.lstrip("/").split("/")
     else:
-        candidate = document.parent / url_path
-    return candidate.resolve(strict=False)
+        start = document.parent
+        components = url_path.split("/")
+    return _walk_case_sensitive(root, start, components)
 
 
 def _parse_html(root: Path, relative_path: str, errors: list[str]) -> PhotoHTMLParser | None:
-    path = root / relative_path
+    try:
+        path = _repository_path(root, relative_path)
+    except LocalPathError as error:
+        errors.append(f"{relative_path}: {error}")
+        return None
     if not path.is_file():
         errors.append(f"{relative_path}: missing HTML file")
         return None
@@ -236,15 +374,22 @@ def _parse_html(root: Path, relative_path: str, errors: list[str]) -> PhotoHTMLP
     try:
         parser.feed(contents)
         parser.close()
+        parser.finalize()
     except (ValueError, AssertionError) as error:
         errors.append(f"{relative_path}: invalid HTML: {error}")
         return None
+    for diagnostic in parser.diagnostics:
+        errors.append(f"{relative_path}:{diagnostic}")
     return parser
 
 
 def _check_html_scope(root: Path, errors: list[str]) -> dict[str, PhotoHTMLParser]:
     parsers: dict[str, PhotoHTMLParser] = {}
-    services_directory = root / "services"
+    try:
+        services_directory = _repository_path(root, "services")
+    except LocalPathError as error:
+        errors.append(f"services: {error}")
+        services_directory = root / "services"
     try:
         actual_services = {
             path.relative_to(root).as_posix()
@@ -265,7 +410,13 @@ def _check_html_scope(root: Path, errors: list[str]) -> dict[str, PhotoHTMLParse
         parsers[relative_path] = parser
         document = root / relative_path
         for reference in parser.references:
-            local = _local_path(root, document, reference)
+            try:
+                local = _local_path(root, document, reference)
+            except LocalPathError as error:
+                errors.append(
+                    f"{relative_path}: invalid local reference {reference}: {error}"
+                )
+                continue
             if local is None:
                 continue
             try:
@@ -287,7 +438,11 @@ def _positive_dimension(value: object) -> bool:
 
 
 def _load_manifest(root: Path, errors: list[str]) -> dict[str, dict[str, tuple[int, int]]]:
-    manifest_path = root / "scripts" / "photo-manifest.json"
+    try:
+        manifest_path = _repository_path(root, "scripts/photo-manifest.json")
+    except LocalPathError as error:
+        errors.append(f"scripts/photo-manifest.json: {error}")
+        return {}
     try:
         payload = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
@@ -316,6 +471,18 @@ def _load_manifest(root: Path, errors: list[str]) -> dict[str, dict[str, tuple[i
             if slug in payload:
                 errors.append(f"scripts/photo-manifest.json: {slug} must be an object")
             continue
+        input_path = role.get("input")
+        if not isinstance(input_path, str) or not input_path:
+            errors.append(
+                f"scripts/photo-manifest.json: {slug}.input must be a nonempty path"
+            )
+        else:
+            try:
+                _repository_path(root, input_path)
+            except LocalPathError as error:
+                errors.append(
+                    f"scripts/photo-manifest.json: {slug}.input: {error}"
+                )
         variants = role.get("variants")
         if not isinstance(variants, dict) or set(variants) != {"desktop", "mobile"}:
             errors.append(
@@ -359,6 +526,19 @@ def _expected_derivatives(
     return expected
 
 
+def _enforce_decode_bounds(image: Image.Image) -> None:
+    width, height = image.size
+    if width > MAX_IMAGE_DIMENSION or height > MAX_IMAGE_DIMENSION:
+        raise ValueError(
+            f"dimensions {width}x{height} exceed dimension limit {MAX_IMAGE_DIMENSION}"
+        )
+    pixels = width * height
+    if pixels > MAX_DECODE_PIXELS:
+        raise ValueError(
+            f"{pixels} pixels exceed pixel limit {MAX_DECODE_PIXELS}"
+        )
+
+
 def _check_image(
     root: Path,
     path: Path,
@@ -377,15 +557,28 @@ def _check_image(
         return
     if size > MAX_IMAGE_BYTES:
         errors.append(f"{label}: {size} bytes exceeds 900000 bytes")
+        return
     try:
-        with Image.open(path) as image:
-            image.verify()
-        with Image.open(path) as image:
-            image.load()
-            actual_format = image.format
-            actual_dimensions = image.size
-            actual_mode = image.mode
-    except (UnidentifiedImageError, OSError, SyntaxError, ValueError) as error:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            with Image.open(path) as image:
+                _enforce_decode_bounds(image)
+                image.verify()
+            with Image.open(path) as image:
+                _enforce_decode_bounds(image)
+                image.load()
+                actual_format = image.format
+                actual_dimensions = image.size
+                actual_mode = image.mode
+    except (
+        Image.DecompressionBombError,
+        Image.DecompressionBombWarning,
+        MemoryError,
+        UnidentifiedImageError,
+        OSError,
+        SyntaxError,
+        ValueError,
+    ) as error:
         errors.append(f"{label}: invalid image: {_error_detail(root, error)}")
         return
     if actual_format != expected_format:
@@ -408,7 +601,11 @@ def _check_derivatives(
     expected = _expected_derivatives(roles)
     if len(expected) != 56:
         return
-    directory = root / "photosalon" / "web"
+    try:
+        directory = _repository_path(root, "photosalon/web")
+    except LocalPathError as error:
+        errors.append(f"photosalon/web: {error}")
+        return
     if not directory.is_dir():
         errors.append("photosalon/web: missing derivative directory")
         return
@@ -430,8 +627,12 @@ def _check_derivatives(
 
 
 def _check_og_image(root: Path, errors: list[str]) -> None:
-    path = root / "assets" / "og-image.jpg"
     label = "assets/og-image.jpg"
+    try:
+        path = _repository_path(root, label)
+    except LocalPathError as error:
+        errors.append(f"{label}: {error}")
+        return
     if not path.is_file():
         errors.append(f"{label}: missing Open Graph image")
         return
@@ -442,17 +643,30 @@ def _check_og_image(root: Path, errors: list[str]) -> None:
         return
     if size > MAX_IMAGE_BYTES:
         errors.append(f"{label}: {size} bytes exceeds 900000 bytes")
+        return
     try:
-        with Image.open(path) as image:
-            image.verify()
-        with Image.open(path) as image:
-            image.load()
-            image_format = image.format
-            dimensions = image.size
-            mode = image.mode
-            has_exif = bool(image.getexif()) or bool(image.info.get("exif"))
-            has_icc = bool(image.info.get("icc_profile"))
-    except (UnidentifiedImageError, OSError, SyntaxError, ValueError) as error:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            with Image.open(path) as image:
+                _enforce_decode_bounds(image)
+                image.verify()
+            with Image.open(path) as image:
+                _enforce_decode_bounds(image)
+                image.load()
+                image_format = image.format
+                dimensions = image.size
+                mode = image.mode
+                has_exif = bool(image.getexif()) or bool(image.info.get("exif"))
+                has_icc = bool(image.info.get("icc_profile"))
+    except (
+        Image.DecompressionBombError,
+        Image.DecompressionBombWarning,
+        MemoryError,
+        UnidentifiedImageError,
+        OSError,
+        SyntaxError,
+        ValueError,
+    ) as error:
         errors.append(f"{label}: invalid image: {_error_detail(root, error)}")
         return
     if image_format != "JPEG" or dimensions != (1200, 630) or mode != "RGB":
@@ -472,7 +686,10 @@ def _normalized_references(
     document = root / relative_path
     result: list[str] = []
     for reference in references:
-        local = _local_path(root, document, reference)
+        try:
+            local = _local_path(root, document, reference)
+        except LocalPathError:
+            continue
         if local is None:
             continue
         try:
@@ -500,6 +717,44 @@ def _picture_paths(root: Path, relative_path: str, picture: Picture) -> list[str
     return _normalized_references(root, relative_path, references)
 
 
+def _check_source_candidate(
+    root: Path,
+    relative_path: str,
+    source: dict[str, str],
+    expected_path: str,
+    label: str,
+    errors: list[str],
+) -> None:
+    candidates = parse_srcset_candidates(source.get("srcset", ""))
+    if len(candidates) != 1:
+        errors.append(
+            f"{relative_path}: {label} source must contain exactly one srcset candidate"
+        )
+        return
+    candidate = candidates[0]
+    if candidate.descriptor:
+        errors.append(
+            f"{relative_path}: {label} source must not use a srcset descriptor"
+        )
+    try:
+        local = _local_path(root, root / relative_path, candidate.url)
+    except LocalPathError as error:
+        errors.append(f"{relative_path}: {label} source path is invalid: {error}")
+        return
+    if local is None:
+        errors.append(f"{relative_path}: {label} source candidate must be local")
+        return
+    try:
+        normalized = local.relative_to(root).as_posix()
+    except ValueError:
+        errors.append(f"{relative_path}: {label} source candidate escapes repository")
+        return
+    if normalized != expected_path:
+        errors.append(
+            f"{relative_path}: {label} source must reference {expected_path}, got {normalized}"
+        )
+
+
 def _check_picture(
     root: Path,
     relative_path: str,
@@ -524,6 +779,10 @@ def _check_picture(
         )
         return None
     picture = candidates[0]
+    if picture.inside_template:
+        errors.append(
+            f"{relative_path}: premium picture must not be inside <template>"
+        )
     actual_paths = _picture_paths(root, relative_path, picture)
     if actual_paths != expected_paths:
         errors.append(
@@ -533,6 +792,20 @@ def _check_picture(
         errors.append(f"{relative_path}: {slug} picture must contain three sources")
     else:
         first, second, third = picture.sources
+        for source, expected_path, source_label in zip(
+            picture.sources,
+            expected_paths[:3],
+            (f"{slug} mobile WebP", f"{slug} mobile JPEG", f"{slug} desktop WebP"),
+            strict=True,
+        ):
+            _check_source_candidate(
+                root,
+                relative_path,
+                source,
+                expected_path,
+                source_label,
+                errors,
+            )
         if first.get("media") != mobile_media or second.get("media") != mobile_media:
             errors.append(
                 f"{relative_path}: {slug} mobile source media must be exactly {mobile_media}"
@@ -662,6 +935,10 @@ def _check_premium_html(
             errors.append(
                 f"{relative_path}: service hero figure must be cinematic"
             )
+        if hero is not None and hero.inside_template:
+            errors.append(
+                f"{relative_path}: service hero figure must not be inside <template>"
+            )
         picture = _check_picture(
             root,
             relative_path,
@@ -698,6 +975,10 @@ def _check_premium_html(
             )
             return
         hero = hero_figures[0]
+        if hero.inside_template:
+            errors.append(
+                f"{child_path}: service hero figure must not be inside <template>"
+            )
         classes = set(hero.attributes.get("class", "").split())
         if "service-hero-image--temporary" not in classes:
             errors.append(
@@ -740,33 +1021,103 @@ def _sanitize_subprocess_output(root: Path, output: str) -> str:
     return sanitized.replace("\\\\", "/").replace("\\", "/")
 
 
-def _check_builder(root: Path, errors: list[str]) -> None:
-    script = root / "scripts" / "build-photo-derivatives.py"
-    if not script.is_file():
-        errors.append("scripts/build-photo-derivatives.py: missing builder")
-        return
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _derivative_snapshot(root: Path) -> dict[str, tuple[str, int, str]] | None:
     try:
-        completed = subprocess.run(
-            [sys.executable, str(script), "--verify"],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=600,
-        )
-    except (OSError, subprocess.SubprocessError) as error:
+        directory = _repository_path(root, "photosalon/web")
+        entries = list(directory.iterdir())
+        snapshot: dict[str, tuple[str, int, str]] = {}
+        for entry in entries:
+            if entry.is_file():
+                snapshot[entry.name] = ("file", entry.stat().st_size, _sha256(entry))
+            elif entry.is_dir():
+                snapshot[entry.name] = ("directory", 0, "")
+            else:
+                snapshot[entry.name] = ("other", 0, "")
+        return snapshot
+    except (LocalPathError, OSError):
+        return None
+
+
+def _load_trusted_builder():
+    path = Path(__file__).resolve().with_name("build-photo-derivatives.py")
+    module_name = "_verify_photo_assets_trusted_builder"
+    existing = sys.modules.get(module_name)
+    if existing is not None and Path(existing.__file__).resolve() == path:
+        return existing
+    spec = importlib.util.spec_from_file_location(module_name, path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load trusted builder at {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    try:
+        spec.loader.exec_module(module)
+    except BaseException:
+        sys.modules.pop(module_name, None)
+        raise
+    return module
+
+
+def _check_builder(
+    root: Path,
+    roles: dict[str, dict[str, tuple[int, int]]],
+    errors: list[str],
+) -> None:
+    before = _derivative_snapshot(root)
+    expected_names = set(_expected_derivatives(roles))
+    try:
+        builder = _load_trusted_builder()
+        manifest_path = _repository_path(root, "scripts/photo-manifest.json")
+        trusted_roles = builder.load_manifest(manifest_path, root)
+        selected = builder.select_slugs(EXPECTED_ROLE_SLUGS, trusted_roles)
+        with tempfile.TemporaryDirectory(prefix="verify-photo-assets-") as temporary:
+            staging = Path(temporary).resolve()
+            try:
+                staging.relative_to(root)
+            except ValueError:
+                pass
+            else:
+                raise RuntimeError("system temporary directory is inside audited root")
+            specs, _reports = builder.stage_outputs(
+                trusted_roles, selected, staging, root
+            )
+            generated_names = {spec.path.name for spec in specs}
+            if generated_names != expected_names:
+                raise RuntimeError(
+                    "trusted builder generated an unexpected derivative name set"
+                )
+            for spec in specs:
+                live = root / "photosalon" / "web" / spec.path.name
+                generated = staging / spec.path.name
+                if not live.is_file():
+                    continue
+                if _sha256(live) != _sha256(generated):
+                    errors.append(
+                        "trusted derivative verification: "
+                        f"photosalon/web/{spec.path.name}: stale derivative"
+                    )
+    except Exception as error:
         errors.append(
-            "build-photo-derivatives.py --verify: cannot run: "
+            "trusted derivative verification failed: "
             f"{_error_detail(root, error)}"
         )
-        return
-    if completed.returncode:
-        details = completed.stderr.strip() or completed.stdout.strip()
-        details = _sanitize_subprocess_output(root, details)
-        errors.append(
-            "build-photo-derivatives.py --verify failed"
-            + (f": {details}" if details else f" with exit {completed.returncode}")
-        )
+    finally:
+        after = _derivative_snapshot(root)
+        if before != after:
+            errors.append(
+                "trusted derivative verification mutated photosalon/web contents"
+            )
+        if after is not None and expected_names and set(after) != expected_names:
+            errors.append(
+                "trusted derivative verification post-scan found unexpected derivative names"
+            )
 
 
 def _check_service_worker(root: Path, errors: list[str]) -> None:
@@ -803,7 +1154,7 @@ def audit_repository(root: Path) -> list[str]:
     parsers = _check_html_scope(root, errors)
     _check_premium_html(root, parsers, roles, errors)
     _check_og_image(root, errors)
-    _check_builder(root, errors)
+    _check_builder(root, roles, errors)
     _check_service_worker(root, errors)
     return errors
 

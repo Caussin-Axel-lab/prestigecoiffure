@@ -1,4 +1,5 @@
 import importlib.util
+import hashlib
 import io
 import json
 import subprocess
@@ -7,6 +8,7 @@ import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from unittest import mock
 
 from PIL import Image
 
@@ -81,12 +83,21 @@ def write_exif_jpeg(path):
     Image.new("RGB", (1200, 630)).save(path, format="JPEG", exif=exif)
 
 
+def file_hashes(directory):
+    return {
+        path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in sorted(directory.iterdir())
+        if path.is_file()
+    }
+
+
 class RepositoryFixture:
     def __init__(self, root):
         self.root = Path(root)
         (self.root / "scripts").mkdir()
         (self.root / "services").mkdir()
         (self.root / "photosalon" / "web").mkdir(parents=True)
+        (self.root / "photosalon" / "retouched").mkdir()
         (self.root / "assets").mkdir()
         self.write_manifest()
         self.write_derivatives()
@@ -113,11 +124,29 @@ class RepositoryFixture:
     def write_derivatives(self):
         output = self.root / "photosalon" / "web"
         for slug in ROLE_SLUGS:
+            source = Image.new("RGB", (4, 4), "tan")
+            source.save(
+                self.root / "photosalon" / "retouched" / f"{slug}.png",
+                format="PNG",
+            )
             for variant in ("desktop", "mobile"):
                 for extension, image_format in (("jpg", "JPEG"), ("webp", "WEBP")):
-                    Image.new("RGB", (4, 4), "tan").save(
-                        output / f"{slug}-{variant}.{extension}", format=image_format
-                    )
+                    destination = output / f"{slug}-{variant}.{extension}"
+                    if image_format == "JPEG":
+                        source.save(
+                            destination,
+                            format="JPEG",
+                            quality=88,
+                            optimize=True,
+                            progressive=True,
+                        )
+                    else:
+                        source.save(
+                            destination,
+                            format="WEBP",
+                            quality=84,
+                            method=6,
+                        )
 
     def write_html(self):
         index_roles = ROLE_SLUGS[:5]
@@ -272,13 +301,45 @@ class PhotoAssetVerifierTests(unittest.TestCase):
                 self.assertIn(expected, "\n".join(self.errors()))
 
     def test_stale_builder_failure_is_aggregated_and_repo_relative(self):
-        self.fixture.write_builder(exit_code=1, message=str(self.root / "photosalon" / "web" / "hero-salon-desktop.jpg") + ": stale derivative")
+        target = self.root / "photosalon" / "web" / "hero-salon-desktop.jpg"
+        Image.new("RGB", (4, 4), "black").save(
+            target,
+            format="JPEG",
+            quality=88,
+            optimize=True,
+            progressive=True,
+        )
 
         errors = "\n".join(self.errors())
 
-        self.assertIn("build-photo-derivatives.py --verify", errors)
+        self.assertIn("trusted derivative verification", errors)
         self.assertIn("photosalon/web/hero-salon-desktop.jpg: stale derivative", errors)
         self.assertNotIn(str(self.root), errors)
+
+    def test_audited_root_builder_is_never_executed_or_allowed_to_mutate(self):
+        marker = self.root / "malicious-builder-ran"
+        target = self.root / "photosalon" / "web" / "hero-salon-desktop.jpg"
+        before = file_hashes(self.root / "photosalon" / "web")
+        (self.root / "scripts" / "build-photo-derivatives.py").write_text(
+            "from pathlib import Path\n"
+            f"Path({str(marker)!r}).write_text('executed')\n"
+            f"Path({str(target)!r}).write_bytes(b'mutated')\n",
+            encoding="utf-8",
+        )
+
+        self.assertEqual(self.errors(), [])
+
+        self.assertFalse(marker.exists())
+        self.assertEqual(file_hashes(self.root / "photosalon" / "web"), before)
+
+    def test_trusted_staleness_check_preserves_all_56_output_hashes(self):
+        output = self.root / "photosalon" / "web"
+        before = file_hashes(output)
+        self.assertEqual(len(before), 56)
+
+        self.assertEqual(self.errors(), [])
+
+        self.assertEqual(file_hashes(output), before)
 
     def test_og_contract_rejects_dimensions_mode_and_metadata(self):
         og = self.root / "assets" / "og-image.jpg"
@@ -510,6 +571,170 @@ class PhotoAssetVerifierTests(unittest.TestCase):
             with self.subTest(label=label):
                 manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
                 self.assertIn(expected, "\n".join(self.errors()))
+
+    def test_duplicate_attributes_are_rejected_before_dict_conversion(self):
+        retired = self.root / "services" / "lissage-ybera.html"
+        retired.write_text(
+            '<img src="../assets/missing.jpg" src="../assets/og-image.jpg">',
+            encoding="utf-8",
+        )
+
+        errors = "\n".join(self.errors())
+
+        self.assertIn(
+            "services/lissage-ybera.html:1: <img> duplicate attribute 'src'",
+            errors,
+        )
+
+    def test_premium_service_hero_and_picture_are_rejected_inside_template(self):
+        service = self.root / "services" / "balayage.html"
+        service.write_text(
+            "<template>" + service.read_text(encoding="utf-8") + "</template>",
+            encoding="utf-8",
+        )
+
+        errors = "\n".join(self.errors())
+
+        self.assertIn(
+            "services/balayage.html: service hero figure must not be inside <template>",
+            errors,
+        )
+        self.assertIn(
+            "services/balayage.html: premium picture must not be inside <template>",
+            errors,
+        )
+
+    def test_premium_srcset_rejects_multiple_remote_and_local_candidates(self):
+        service = self.root / "services" / "balayage.html"
+        expected = "../photosalon/web/service-balayage-mobile.webp"
+        original = service.read_text(encoding="utf-8")
+        cases = (
+            (f"https://example.test/remote.webp 1x, {expected} 2x", "remote and expected"),
+            (f"{expected}, {expected}", "two local candidates"),
+        )
+        for srcset, label in cases:
+            with self.subTest(label=label):
+                service.write_text(
+                    original.replace(f'srcset="{expected}"', f'srcset="{srcset}"', 1),
+                    encoding="utf-8",
+                )
+                self.assertIn(
+                    "service-balayage mobile WebP source must contain exactly one srcset candidate",
+                    "\n".join(self.errors()),
+                )
+
+    def test_premium_srcset_rejects_descriptor_on_single_expected_candidate(self):
+        service = self.root / "services" / "balayage.html"
+        expected = "../photosalon/web/service-balayage-mobile.webp"
+        service.write_text(
+            service.read_text(encoding="utf-8").replace(
+                f'srcset="{expected}"', f'srcset="{expected} 2x"', 1
+            ),
+            encoding="utf-8",
+        )
+
+        errors = "\n".join(self.errors())
+
+        self.assertIn(
+            "service-balayage mobile WebP source must not use a srcset descriptor",
+            errors,
+        )
+
+    def test_single_local_expected_srcset_candidate_is_accepted(self):
+        self.assertEqual(self.errors(), [])
+
+    def test_oversized_derivative_is_not_opened_or_decoded(self):
+        target = self.root / "photosalon" / "web" / "hero-salon-desktop.jpg"
+        target.write_bytes(target.read_bytes() + b"x" * 900_001)
+        errors = []
+        with mock.patch.object(verifier.Image, "open", wraps=Image.open) as opened:
+            verifier._check_image(self.root, target, "JPEG", (4, 4), errors)
+
+        opened_paths = [Path(call.args[0]) for call in opened.call_args_list]
+        self.assertNotIn(target, opened_paths)
+        self.assertIn("exceeds 900000 bytes", "\n".join(errors))
+
+    def test_decompression_bomb_warning_is_aggregated_as_image_error(self):
+        target = self.root / "small.jpg"
+        Image.new("RGB", (20, 20), "black").save(target, format="JPEG")
+        errors = []
+
+        with mock.patch.object(verifier.Image, "MAX_IMAGE_PIXELS", 300):
+            verifier._check_image(self.root, target, "JPEG", (20, 20), errors)
+
+        self.assertIn("decompression bomb", "\n".join(errors).lower())
+
+    def test_explicit_pixel_limit_is_checked_before_image_load(self):
+        target = self.root / "bounded.jpg"
+        Image.new("RGB", (20, 20), "black").save(target, format="JPEG")
+        errors = []
+
+        with mock.patch.object(
+            verifier, "MAX_DECODE_PIXELS", 100, create=True
+        ):
+            verifier._check_image(self.root, target, "JPEG", (20, 20), errors)
+
+        self.assertIn("pixel limit", "\n".join(errors))
+
+    def test_local_references_are_resolved_case_sensitively(self):
+        retired = self.root / "services" / "lissage-ybera.html"
+        for reference in (
+            "../Assets/og-image.jpg",
+            "../assets/OG-image.jpg",
+            "../assets/og-image.JPG",
+        ):
+            with self.subTest(reference=reference):
+                retired.write_text(f'<img src="{reference}">', encoding="utf-8")
+                self.assertIn("case mismatch", "\n".join(self.errors()))
+
+        retired.write_text(
+            '<img src="../assets/og%2Dimage.jpg">', encoding="utf-8"
+        )
+        self.assertEqual(self.errors(), [])
+
+    def test_manifest_og_and_html_entry_paths_require_exact_case(self):
+        cases = (
+            (
+                self.root / "scripts" / "photo-manifest.json",
+                self.root / "scripts" / "Photo-Manifest.json",
+                "scripts/photo-manifest.json",
+            ),
+            (
+                self.root / "assets" / "og-image.jpg",
+                self.root / "assets" / "OG-image.jpg",
+                "assets/og-image.jpg",
+            ),
+            (
+                self.root / "index.html",
+                self.root / "Index.html",
+                "index.html",
+            ),
+        )
+        for expected, wrong_case, label in cases:
+            with self.subTest(label=label):
+                intermediate = expected.with_name("case-rename.tmp")
+                expected.rename(intermediate)
+                intermediate.rename(wrong_case)
+                try:
+                    errors = "\n".join(self.errors())
+                    self.assertIn(label, errors)
+                    self.assertIn("case mismatch", errors)
+                finally:
+                    wrong_case.rename(intermediate)
+                    intermediate.rename(expected)
+
+    def test_manifest_input_path_requires_exact_case(self):
+        manifest_path = self.root / "scripts" / "photo-manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["hero-salon"]["input"] = (
+            "photosalon/Retouched/hero-salon.PNG"
+        )
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+        errors = "\n".join(self.errors())
+
+        self.assertIn("scripts/photo-manifest.json: hero-salon.input", errors)
+        self.assertIn("case mismatch", errors)
 
     def test_cache_version_and_no_derivative_precache_are_enforced(self):
         self.fixture.write_service_worker(precache="'/photosalon/web/hero-salon-desktop.jpg'")
