@@ -55,12 +55,20 @@ LOCAL_SERVICES = (
 )
 
 
-def picture_markup(slug, prefix="", *, below_fold=False):
+def picture_markup(
+    slug,
+    prefix="",
+    *,
+    below_fold=False,
+    mobile_jpeg_type=True,
+    mobile_media="(max-width: 720px)",
+):
     loading = ' loading="lazy" decoding="async"' if below_fold else ' loading="eager" fetchpriority="high"'
+    jpeg_type = ' type="image/jpeg"' if mobile_jpeg_type else ""
     return f"""
       <picture>
-        <source media="(max-width: 720px)" type="image/webp" srcset="{prefix}photosalon/web/{slug}-mobile.webp">
-        <source media="(max-width: 720px)" type="image/jpeg" srcset="{prefix}photosalon/web/{slug}-mobile.jpg">
+        <source media="{mobile_media}" type="image/webp" srcset="{prefix}photosalon/web/{slug}-mobile.webp">
+        <source media="{mobile_media}"{jpeg_type} srcset="{prefix}photosalon/web/{slug}-mobile.jpg">
         <source type="image/webp" srcset="{prefix}photosalon/web/{slug}-desktop.webp">
         <img src="{prefix}photosalon/web/{slug}-desktop.jpg" width="4" height="4" alt="Description utile"{loading}>
       </picture>
@@ -113,9 +121,23 @@ class RepositoryFixture:
 
     def write_html(self):
         index_roles = ROLE_SLUGS[:5]
+        index_media = {
+            "hero-salon": "(max-width: 900px)",
+            "salon-lounge": "(max-width: 860px)",
+            "salon-barbier": "(max-width: 860px)",
+            "salon-headspa": "(max-width: 860px)",
+            "cabine-headspa": "(max-width: 720px)",
+        }
         index = ["<!doctype html><html><body>"]
         for position, slug in enumerate(index_roles):
-            index.append(picture_markup(slug, below_fold=position > 0))
+            index.append(
+                picture_markup(
+                    slug,
+                    below_fold=position > 0,
+                    mobile_jpeg_type=False,
+                    mobile_media=index_media[slug],
+                )
+            )
         index.append("</body></html>")
         (self.root / "index.html").write_text("".join(index), encoding="utf-8")
 
@@ -271,6 +293,15 @@ class PhotoAssetVerifierTests(unittest.TestCase):
                 mutate()
                 self.assertIn(expected, "\n".join(self.errors()))
 
+    def test_og_contract_rejects_wrong_format_and_oversized_file(self):
+        og = self.root / "assets" / "og-image.jpg"
+        Image.new("RGB", (1200, 630)).save(og, format="PNG")
+        self.assertIn("RGB JPEG", "\n".join(self.errors()))
+
+        self.fixture.write_og()
+        og.write_bytes(og.read_bytes() + b"x" * 900_001)
+        self.assertIn("exceeds 900000 bytes", "\n".join(self.errors()))
+
     def test_active_premium_contract_rejects_bad_mapping_attrs_and_kid_claim(self):
         index = self.root / "index.html"
         index.write_text(
@@ -309,6 +340,176 @@ class PhotoAssetVerifierTests(unittest.TestCase):
         errors = "\n".join(self.errors())
         self.assertIn("services/lissage-ybera.html: missing local reference assets/gone.jpg", errors)
         self.assertNotIn("premium", errors)
+
+    def test_index_rejects_a_sixth_picture_even_when_it_is_external(self):
+        index = self.root / "index.html"
+        index.write_text(
+            index.read_text(encoding="utf-8").replace(
+                "</body>",
+                '<picture><img src="https://example.test/extra.jpg" alt="Extra"></picture></body>',
+            ),
+            encoding="utf-8",
+        )
+
+        errors = "\n".join(self.errors())
+
+        self.assertIn("index.html: expected exactly 5 picture elements, got 6", errors)
+
+    def test_service_rejects_premium_picture_outside_its_hero_figure(self):
+        service = self.root / "services" / "balayage.html"
+        service.write_text(
+            '<figure class="service-hero-image service-hero-image--cinematic"></figure>'
+            + picture_markup("service-balayage", prefix="../"),
+            encoding="utf-8",
+        )
+
+        errors = "\n".join(self.errors())
+
+        self.assertIn("services/balayage.html: premium picture must be inside the unique hero figure", errors)
+
+    def test_service_rejects_multiple_local_hero_figures(self):
+        service = self.root / "services" / "balayage.html"
+        service.write_text(
+            '<figure class="service-hero-image service-hero-image--cinematic"></figure>'
+            + service.read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+
+        errors = "\n".join(self.errors())
+
+        self.assertIn("services/balayage.html: expected exactly one service hero figure, got 2", errors)
+
+    def test_service_rejects_external_image_inside_local_hero(self):
+        service = self.root / "services" / "balayage.html"
+        service.write_text(
+            service.read_text(encoding="utf-8").replace(
+                "<picture>",
+                '<img src="https://example.test/wrong-hero.jpg" alt="Wrong"><picture>',
+                1,
+            ),
+            encoding="utf-8",
+        )
+
+        errors = "\n".join(self.errors())
+
+        self.assertIn("services/balayage.html: hero figure must contain exactly the premium fallback img", errors)
+
+    def test_picture_source_attributes_are_exact_for_index_and_services(self):
+        index = self.root / "index.html"
+        original_index = index.read_text(encoding="utf-8")
+        index.write_text(
+            original_index.replace(
+                'media="(max-width: 900px)" srcset="photosalon/web/hero-salon-mobile.jpg"',
+                'media="(max-width: 900px)" type="image/jpeg" srcset="photosalon/web/hero-salon-mobile.jpg"',
+                1,
+            ),
+            encoding="utf-8",
+        )
+        self.assertIn(
+            "index.html: hero-salon mobile JPEG source must not declare type",
+            "\n".join(self.errors()),
+        )
+
+        index.write_text(original_index, encoding="utf-8")
+        service = self.root / "services" / "balayage.html"
+        original_service = service.read_text(encoding="utf-8")
+        cases = (
+            (
+                "media",
+                original_service.replace("(max-width: 720px)", "(max-width: 999px)"),
+                "mobile source media must be exactly (max-width: 720px)",
+            ),
+            (
+                "JPEG type",
+                original_service.replace(' type="image/jpeg"', "", 1),
+                "mobile JPEG source type must be image/jpeg",
+            ),
+            (
+                "WebP type",
+                original_service.replace(
+                    'type="image/webp" srcset="../photosalon/web/service-balayage-mobile.webp"',
+                    'type="image/jpeg" srcset="../photosalon/web/service-balayage-mobile.webp"',
+                    1,
+                ),
+                "mobile WebP source type must be image/webp",
+            ),
+            (
+                "desktop media",
+                original_service.replace(
+                    '<source type="image/webp" srcset="../photosalon/web/service-balayage-desktop.webp">',
+                    '<source media="(min-width: 721px)" type="image/webp" srcset="../photosalon/web/service-balayage-desktop.webp">',
+                    1,
+                ),
+                "desktop WebP source must not declare media",
+            ),
+        )
+        for label, document, expected in cases:
+            with self.subTest(label=label):
+                service.write_text(document, encoding="utf-8")
+                self.assertIn(expected, "\n".join(self.errors()))
+
+    def test_child_requires_one_hero_with_all_classes_on_the_same_figure(self):
+        child = self.root / "services" / "coupes-enfant.html"
+        child.write_text(
+            '<figure class="service-hero-image service-hero-image--cinematic">'
+            '<img src="https://example.test/one.jpg" alt="One"></figure>'
+            '<figure class="service-hero-image service-hero-image--temporary">'
+            '<img src="https://example.test/two.jpg" alt="Two"></figure>',
+            encoding="utf-8",
+        )
+
+        errors = "\n".join(self.errors())
+
+        self.assertIn("services/coupes-enfant.html: expected exactly one service hero figure, got 2", errors)
+
+    def test_child_rejects_picture_and_local_hero_url(self):
+        child = self.root / "services" / "coupes-enfant.html"
+        child.write_text(
+            '<figure class="service-hero-image service-hero-image--cinematic service-hero-image--temporary">'
+            '<picture><img src="../assets/og-image.jpg" alt="Local"></picture>'
+            "</figure>",
+            encoding="utf-8",
+        )
+
+        errors = "\n".join(self.errors())
+
+        self.assertIn("services/coupes-enfant.html: temporary hero must not contain a picture", errors)
+        self.assertIn("services/coupes-enfant.html: temporary hero img must be external", errors)
+
+    def test_child_requires_exactly_one_hero_image(self):
+        child = self.root / "services" / "coupes-enfant.html"
+        child.write_text(
+            '<figure class="service-hero-image service-hero-image--cinematic service-hero-image--temporary">'
+            '<img src="https://example.test/one.jpg" alt="One">'
+            '<img src="https://example.test/two.jpg" alt="Two">'
+            "</figure>",
+            encoding="utf-8",
+        )
+
+        errors = "\n".join(self.errors())
+
+        self.assertIn("services/coupes-enfant.html: temporary hero must contain exactly one img", errors)
+
+    def test_manifest_requires_exact_roles_and_variants(self):
+        manifest_path = self.root / "scripts" / "photo-manifest.json"
+        original = json.loads(manifest_path.read_text(encoding="utf-8"))
+        cases = []
+        missing_role = json.loads(json.dumps(original))
+        missing_role.pop("hero-salon")
+        cases.append(("role", missing_role, "expected exactly 14 photo roles"))
+        extra_variant = json.loads(json.dumps(original))
+        extra_variant["hero-salon"]["variants"]["tablet"] = {
+            "width": 4,
+            "height": 4,
+            "focalX": 0.5,
+            "focalY": 0.5,
+        }
+        cases.append(("variant", extra_variant, "must define exactly desktop and mobile variants"))
+
+        for label, manifest, expected in cases:
+            with self.subTest(label=label):
+                manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+                self.assertIn(expected, "\n".join(self.errors()))
 
     def test_cache_version_and_no_derivative_precache_are_enforced(self):
         self.fixture.write_service_worker(precache="'/photosalon/web/hero-salon-desktop.jpg'")

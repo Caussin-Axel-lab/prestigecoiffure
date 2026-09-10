@@ -36,6 +36,13 @@ EXPECTED_ROLE_SLUGS = (
     "service-patine-gloss",
 )
 INDEX_ROLES = EXPECTED_ROLE_SLUGS[:5]
+INDEX_MOBILE_MEDIA = {
+    "hero-salon": "(max-width: 900px)",
+    "salon-lounge": "(max-width: 860px)",
+    "salon-barbier": "(max-width: 860px)",
+    "salon-headspa": "(max-width: 860px)",
+    "cabine-headspa": "(max-width: 720px)",
+}
 LOCAL_SERVICE_SLUGS = (
     "balayage",
     "barberie",
@@ -77,13 +84,15 @@ REMOTE_SCHEMES = {"http", "https", "data"}
 class Picture:
     sources: list[dict[str, str]] = field(default_factory=list)
     image: dict[str, str] | None = None
+    images: list[dict[str, str]] = field(default_factory=list)
+    parent_figure: Figure | None = None
 
 
 @dataclass
 class Figure:
     attributes: dict[str, str]
     images: list[dict[str, str]] = field(default_factory=list)
-    picture_count: int = 0
+    pictures: list[Picture] = field(default_factory=list)
 
 
 class PhotoHTMLParser(HTMLParser):
@@ -94,8 +103,8 @@ class PhotoHTMLParser(HTMLParser):
         self.references: list[str] = []
         self.pictures: list[Picture] = []
         self.figures: list[Figure] = []
-        self._picture: Picture | None = None
-        self._figure: Figure | None = None
+        self._picture_stack: list[Picture] = []
+        self._figure_stack: list[Figure] = []
 
     @staticmethod
     def _attributes(attributes: list[tuple[str, str | None]]) -> dict[str, str]:
@@ -113,20 +122,26 @@ class PhotoHTMLParser(HTMLParser):
             self.references.extend(parse_srcset(attrs["srcset"]))
 
         if tag == "figure":
-            self._figure = Figure(attributes=attrs)
-            self.figures.append(self._figure)
+            figure = Figure(attributes=attrs)
+            self.figures.append(figure)
+            self._figure_stack.append(figure)
         elif tag == "picture":
-            self._picture = Picture()
-            self.pictures.append(self._picture)
-            if self._figure is not None:
-                self._figure.picture_count += 1
-        elif tag == "source" and self._picture is not None:
-            self._picture.sources.append(attrs)
+            parent = self._figure_stack[-1] if self._figure_stack else None
+            picture = Picture(parent_figure=parent)
+            self.pictures.append(picture)
+            self._picture_stack.append(picture)
+            if parent is not None:
+                parent.pictures.append(picture)
+        elif tag == "source" and self._picture_stack:
+            self._picture_stack[-1].sources.append(attrs)
         elif tag == "img":
-            if self._picture is not None:
-                self._picture.image = attrs
-            if self._figure is not None:
-                self._figure.images.append(attrs)
+            if self._picture_stack:
+                picture = self._picture_stack[-1]
+                picture.images.append(attrs)
+                if picture.image is None:
+                    picture.image = attrs
+            if self._figure_stack:
+                self._figure_stack[-1].images.append(attrs)
 
     def handle_startendtag(
         self, tag: str, attributes: list[tuple[str, str | None]]
@@ -136,10 +151,10 @@ class PhotoHTMLParser(HTMLParser):
 
     def handle_endtag(self, tag: str) -> None:
         tag = tag.lower()
-        if tag == "picture":
-            self._picture = None
-        elif tag == "figure":
-            self._figure = None
+        if tag == "picture" and self._picture_stack:
+            self._picture_stack.pop()
+        elif tag == "figure" and self._figure_stack:
+            self._figure_stack.pop()
 
 
 def parse_srcset(value: str) -> list[str]:
@@ -494,7 +509,9 @@ def _check_picture(
     errors: list[str],
     *,
     below_fold: bool,
-) -> None:
+    mobile_media: str,
+    mobile_jpeg_type: str | None,
+) -> Picture | None:
     expected_paths = _expected_role_paths(slug)
     candidates = [
         picture
@@ -505,7 +522,7 @@ def _check_picture(
         errors.append(
             f"{relative_path}: {slug} must have exactly one premium picture"
         )
-        return
+        return None
     picture = candidates[0]
     actual_paths = _picture_paths(root, relative_path, picture)
     if actual_paths != expected_paths:
@@ -516,17 +533,39 @@ def _check_picture(
         errors.append(f"{relative_path}: {slug} picture must contain three sources")
     else:
         first, second, third = picture.sources
-        if first.get("type", "").lower() != "image/webp" or not first.get("media"):
-            errors.append(f"{relative_path}: {slug} mobile WebP source attributes are invalid")
-        second_type = second.get("type", "").lower()
-        if not second.get("media") or second.get("media") != first.get("media") or second_type not in {"", "image/jpeg"}:
-            errors.append(f"{relative_path}: {slug} mobile JPEG source attributes are invalid")
-        if third.get("type", "").lower() != "image/webp" or third.get("media"):
-            errors.append(f"{relative_path}: {slug} desktop WebP source attributes are invalid")
+        if first.get("media") != mobile_media or second.get("media") != mobile_media:
+            errors.append(
+                f"{relative_path}: {slug} mobile source media must be exactly {mobile_media}"
+            )
+        if first.get("type") != "image/webp":
+            errors.append(
+                f"{relative_path}: {slug} mobile WebP source type must be image/webp"
+            )
+        if mobile_jpeg_type is None:
+            if "type" in second:
+                errors.append(
+                    f"{relative_path}: {slug} mobile JPEG source must not declare type"
+                )
+        elif second.get("type") != mobile_jpeg_type:
+            errors.append(
+                f"{relative_path}: {slug} mobile JPEG source type must be {mobile_jpeg_type}"
+            )
+        if third.get("type") != "image/webp":
+            errors.append(
+                f"{relative_path}: {slug} desktop WebP source type must be image/webp"
+            )
+        if "media" in third:
+            errors.append(
+                f"{relative_path}: {slug} desktop WebP source must not declare media"
+            )
     image = picture.image
     if image is None:
         errors.append(f"{relative_path}: {slug} picture is missing its img fallback")
-        return
+        return picture
+    if picture.images != [image]:
+        errors.append(
+            f"{relative_path}: {slug} picture must contain exactly one img fallback"
+        )
     expected_width, expected_height = dimensions
     if image.get("width") != str(expected_width):
         errors.append(
@@ -553,6 +592,7 @@ def _check_picture(
             errors.append(f"{relative_path}: premium hero loading must be eager")
         if image.get("loading", "").lower() == "lazy":
             errors.append(f"{relative_path}: {slug} hero must not be lazy")
+    return picture
 
 
 def _check_premium_html(
@@ -563,6 +603,10 @@ def _check_premium_html(
 ) -> None:
     index = parsers.get("index.html")
     if index is not None:
+        if len(index.pictures) != 5:
+            errors.append(
+                f"index.html: expected exactly 5 picture elements, got {len(index.pictures)}"
+            )
         references = _normalized_references(root, "index.html", index.references)
         premium = [path for path in references if path.startswith("photosalon/web/")]
         expected = [path for slug in INDEX_ROLES for path in _expected_role_paths(slug)]
@@ -585,6 +629,8 @@ def _check_premium_html(
                     roles[slug]["desktop"],
                     errors,
                     below_fold=position > 0,
+                    mobile_media=INDEX_MOBILE_MEDIA[slug],
+                    mobile_jpeg_type=None,
                 )
 
     for service_slug in LOCAL_SERVICE_SLUGS:
@@ -600,7 +646,23 @@ def _check_premium_html(
             errors.append(
                 f"{relative_path}: premium photo references must be exactly the four expected responsive paths"
             )
-        _check_picture(
+        hero_figures = [
+            figure
+            for figure in parser.figures
+            if "service-hero-image" in figure.attributes.get("class", "").split()
+        ]
+        if len(hero_figures) != 1:
+            errors.append(
+                f"{relative_path}: expected exactly one service hero figure, got {len(hero_figures)}"
+            )
+        hero = hero_figures[0] if len(hero_figures) == 1 else None
+        if hero is not None and "service-hero-image--cinematic" not in hero.attributes.get(
+            "class", ""
+        ).split():
+            errors.append(
+                f"{relative_path}: service hero figure must be cinematic"
+            )
+        picture = _check_picture(
             root,
             relative_path,
             parser,
@@ -608,7 +670,18 @@ def _check_premium_html(
             roles[role_slug]["desktop"],
             errors,
             below_fold=False,
+            mobile_media="(max-width: 720px)",
+            mobile_jpeg_type="image/jpeg",
         )
+        if hero is not None and picture is not None:
+            if picture.parent_figure is not hero or hero.pictures != [picture]:
+                errors.append(
+                    f"{relative_path}: premium picture must be inside the unique hero figure"
+                )
+            if hero.images != [picture.image]:
+                errors.append(
+                    f"{relative_path}: hero figure must contain exactly the premium fallback img"
+                )
 
     child_path = "services/coupes-enfant.html"
     child = parsers.get(child_path)
@@ -619,9 +692,13 @@ def _check_premium_html(
             for figure in child.figures
             if "service-hero-image" in figure.attributes.get("class", "").split()
         ]
-        classes: set[str] = set()
-        for figure in hero_figures:
-            classes.update(figure.attributes.get("class", "").split())
+        if len(hero_figures) != 1:
+            errors.append(
+                f"{child_path}: expected exactly one service hero figure, got {len(hero_figures)}"
+            )
+            return
+        hero = hero_figures[0]
+        classes = set(hero.attributes.get("class", "").split())
         if "service-hero-image--temporary" not in classes:
             errors.append(
                 f"{child_path}: hero must retain class service-hero-image--temporary"
@@ -630,14 +707,22 @@ def _check_premium_html(
             errors.append(
                 f"{child_path}: hero must retain class service-hero-image--cinematic"
             )
-        local_premium = any(path.startswith("photosalon/web/") for path in references)
-        hero_has_picture = any(figure.picture_count for figure in hero_figures)
-        hero_images = [image for figure in hero_figures for image in figure.images]
-        hero_is_external = bool(hero_images) and all(
-            urlsplit(image.get("src", "")).scheme.lower() in {"http", "https"}
-            for image in hero_images
-        )
-        if local_premium or hero_has_picture or not hero_is_external:
+        invalid_temporary_hero = False
+        if hero.pictures:
+            errors.append(f"{child_path}: temporary hero must not contain a picture")
+            invalid_temporary_hero = True
+        if len(hero.images) != 1:
+            errors.append(f"{child_path}: temporary hero must contain exactly one img")
+            invalid_temporary_hero = True
+        elif urlsplit(hero.images[0].get("src", "")).scheme.lower() not in {
+            "http",
+            "https",
+        }:
+            errors.append(f"{child_path}: temporary hero img must be external")
+            invalid_temporary_hero = True
+        if any(path.startswith("photosalon/web/") for path in references):
+            invalid_temporary_hero = True
+        if invalid_temporary_hero:
             errors.append(f"{child_path}: must remain external and temporary")
 
 
