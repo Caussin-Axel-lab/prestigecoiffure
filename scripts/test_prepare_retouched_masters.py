@@ -78,6 +78,15 @@ def write_hash_manifest(path, targets, output_hashes=None):
 
 
 class PrepareRetouchedMastersTests(unittest.TestCase):
+    def test_python_311_or_newer_is_required(self):
+        module = load_module()
+        self.assertTrue(
+            hasattr(module, "require_supported_python"),
+            "missing explicit Python version guard",
+        )
+        with self.assertRaisesRegex(RuntimeError, "Python 3.11 or newer"):
+            module.require_supported_python((3, 10))
+
     def test_process_target_writes_exact_validated_metadata_free_2x_png(self):
         module = load_module()
         self.assertTrue(hasattr(module, "process_target"), "missing staged processor")
@@ -133,12 +142,17 @@ class PrepareRetouchedMastersTests(unittest.TestCase):
             write_hash_manifest(manifest, targets)
             original_replace = os.replace
             promotion_count = 0
+            all_destinations_live_at_first_promotion = False
 
             def fail_second_promotion(source, destination):
-                nonlocal promotion_count
+                nonlocal promotion_count, all_destinations_live_at_first_promotion
                 source_path = Path(source)
                 if source_path.name.endswith(".candidate.png"):
                     promotion_count += 1
+                    if promotion_count == 1:
+                        all_destinations_live_at_first_promotion = all(
+                            target.output.exists() for target in targets.values()
+                        )
                     if promotion_count == 2:
                         raise OSError("forced second promotion failure")
                 return original_replace(source, destination)
@@ -153,7 +167,60 @@ class PrepareRetouchedMastersTests(unittest.TestCase):
 
             for slug, target in targets.items():
                 self.assertEqual(target.output.read_bytes(), previous[slug])
+            self.assertTrue(all_destinations_live_at_first_promotion)
             self.assertEqual(list(outputs.glob(".staging-*")), [])
+
+    def test_restore_failure_preserves_recoverable_backup_and_staging_path(self):
+        module = load_module()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            photos = root / "photosalon"
+            outputs = photos / "retouched"
+            outputs.mkdir(parents=True)
+            targets = {}
+            for index, slug in enumerate(("first", "second"), start=21):
+                source = photos / f"{slug}.jpg"
+                destination = outputs / f"{slug}.png"
+                make_fixture(source, seed=index)
+                destination.write_bytes(f"previous-{slug}".encode("ascii"))
+                targets[slug] = module.RetouchTarget(source, destination, "salon")
+            manifest = root / "photo-master-hashes.json"
+            write_hash_manifest(manifest, targets)
+            original_replace = os.replace
+            promotion_count = 0
+
+            def fail_promotion_then_restore(source, destination):
+                nonlocal promotion_count
+                source_path = Path(source)
+                destination_path = Path(destination)
+                if source_path.name.endswith(".candidate.png"):
+                    promotion_count += 1
+                    if promotion_count == 2:
+                        raise OSError("forced second promotion failure")
+                if (
+                    source_path.name.endswith(".backup")
+                    and destination_path == targets["first"].output
+                ):
+                    raise OSError("forced first restore failure")
+                return original_replace(source, destination)
+
+            with (
+                mock.patch.object(module, "RETOUCHES", targets),
+                mock.patch.object(module, "HASHES_FILE", manifest),
+                mock.patch.object(
+                    module.os, "replace", side_effect=fail_promotion_then_restore
+                ),
+            ):
+                with self.assertRaises(BaseExceptionGroup) as caught:
+                    module.build(["first", "second"])
+
+            staging_directories = list(outputs.glob(".staging-*"))
+            self.assertEqual(len(staging_directories), 1)
+            backups = list(staging_directories[0].glob("first.*.backup"))
+            self.assertEqual(len(backups), 1)
+            message = str(caught.exception)
+            self.assertIn(str(staging_directories[0]), message)
+            self.assertIn(str(backups[0]), message)
 
     def test_committed_output_hash_mismatch_is_rejected(self):
         module = load_module()
@@ -230,6 +297,19 @@ class PrepareRetouchedMastersTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 2)
         self.assertIn("Unknown slug(s): unknown-fixture", result.stderr)
+
+    def test_duplicate_slugs_are_rejected(self):
+        module = load_module()
+        with self.assertRaisesRegex(ValueError, "Duplicate slug.*hero-salon"):
+            module.select_slugs(["hero-salon", "hero-salon"])
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT_PATH), "hero-salon", "hero-salon"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("Duplicate slug(s): hero-salon", result.stderr)
 
 
 if __name__ == "__main__":

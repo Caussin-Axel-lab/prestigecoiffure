@@ -1,5 +1,18 @@
 #!/usr/bin/env python3
-"""Prepare deterministic, non-generative premium salon photo masters."""
+"""Prepare deterministic salon photo masters. Requires Python 3.11 or newer."""
+
+import sys
+
+
+def require_supported_python(version=sys.version_info) -> None:
+    if version < (3, 11):
+        detected = ".".join(str(part) for part in version[:3])
+        raise RuntimeError(
+            f"Python 3.11 or newer is required; detected Python {detected}"
+        )
+
+
+require_supported_python()
 
 import argparse
 import hashlib
@@ -284,43 +297,45 @@ def promote_staged_outputs(
 ) -> None:
     backups: dict[str, Path] = {}
     attempted: list[str] = []
-    promoted: list[str] = []
     try:
         for slug in selected:
             destination = RETOUCHES[slug].output
             if destination.exists():
                 backup = staging_directory / f"{slug}.{uuid.uuid4().hex}.backup"
-                os.replace(destination, backup)
+                shutil.copy2(destination, backup)
                 backups[slug] = backup
 
         for slug in selected:
             attempted.append(slug)
             os.replace(staged[slug], RETOUCHES[slug].output)
-            promoted.append(slug)
     except BaseException as primary_error:
         rollback_errors: list[BaseException] = []
         for slug in reversed(attempted):
             destination = RETOUCHES[slug].output
             try:
-                if destination.exists():
+                backup = backups.get(slug)
+                if backup is not None and backup.exists():
+                    os.replace(backup, destination)
+                elif backup is None and destination.exists():
                     destination.unlink()
             except BaseException as error:
                 rollback_errors.append(error)
-        for slug in reversed(selected):
-            backup = backups.get(slug)
-            if backup is None:
-                continue
-            try:
-                if backup.exists():
-                    os.replace(backup, RETOUCHES[slug].output)
-            except BaseException as error:
-                rollback_errors.append(error)
         if rollback_errors:
-            raise BaseExceptionGroup(
+            recoverable_paths = [
+                path
+                for path in [*backups.values(), *staged.values()]
+                if path.exists()
+            ]
+            recovery_error = BaseExceptionGroup(
                 f"Photo promotion failed: {primary_error}; rollback also failed: "
-                + "; ".join(str(error) for error in rollback_errors),
+                + "; ".join(str(error) for error in rollback_errors)
+                + f"; preserved staging directory: {staging_directory}; "
+                + "recoverable paths: "
+                + ", ".join(str(path) for path in recoverable_paths),
                 [primary_error, *rollback_errors],
             )
+            recovery_error.preserve_staging = True
+            raise recovery_error
         raise
 
 
@@ -328,6 +343,14 @@ def select_slugs(slugs: Iterable[str] | None) -> list[str]:
     selected = [] if slugs is None else list(slugs)
     if not selected:
         selected = list(RETOUCHES)
+    seen: set[str] = set()
+    duplicates: list[str] = []
+    for slug in selected:
+        if slug in seen and slug not in duplicates:
+            duplicates.append(slug)
+        seen.add(slug)
+    if duplicates:
+        raise ValueError(f"Duplicate slug(s): {', '.join(duplicates)}")
     unknown = [slug for slug in selected if slug not in RETOUCHES]
     if unknown:
         choices = ", ".join(RETOUCHES)
@@ -352,6 +375,7 @@ def build(
     staging_directory.mkdir(exist_ok=False)
     reports: list[ValidationResult] = []
     staged: dict[str, Path] = {}
+    preserve_staging = False
     try:
         try:
             for slug in selected:
@@ -366,14 +390,19 @@ def build(
                 validate_committed_output_hashes(selected, manifest, staged)
             promote_staged_outputs(selected, staged, staging_directory)
         except BaseException as primary_error:
+            preserve_staging = bool(
+                getattr(primary_error, "preserve_staging", False)
+            )
             integrity_issues = source_integrity_issues(before)
             if integrity_issues:
-                raise BaseExceptionGroup(
+                build_error = BaseExceptionGroup(
                     f"Photo build failed: {primary_error}; "
                     "source integrity recheck also failed: "
                     + "; ".join(str(error) for error in integrity_issues),
                     [primary_error, *integrity_issues],
                 )
+                build_error.preserve_staging = preserve_staging
+                raise build_error
             raise
         integrity_issues = source_integrity_issues(before)
         if integrity_issues:
@@ -381,7 +410,8 @@ def build(
                 raise integrity_issues[0]
             raise ExceptionGroup("Source integrity checks failed", integrity_issues)
     finally:
-        shutil.rmtree(staging_directory, ignore_errors=True)
+        if not preserve_staging:
+            shutil.rmtree(staging_directory, ignore_errors=True)
 
     return reports
 
