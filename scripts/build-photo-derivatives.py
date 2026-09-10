@@ -15,6 +15,7 @@ def require_supported_python(version=sys.version_info) -> None:
 require_supported_python()
 
 import argparse
+import hashlib
 import json
 import math
 import os
@@ -43,6 +44,54 @@ class ManifestError(ValueError):
 
 class OutputValidationError(RuntimeError):
     """A generated or committed derivative violates its output contract."""
+
+
+class PromotionRecoveryError(BaseExceptionGroup):
+    """Promotion failed and at least one rollback action also failed."""
+
+    def __new__(cls, exceptions: list[BaseException], staging_directory: Path):
+        instance = super().__new__(
+            cls,
+            "Derivative promotion and rollback failed",
+            exceptions,
+        )
+        instance.preserve_staging = True
+        instance.staging_directory = staging_directory
+        return instance
+
+    def __init__(
+        self, exceptions: list[BaseException], staging_directory: Path
+    ) -> None:
+        pass
+
+    def derive(self, exceptions):
+        return type(self)(list(exceptions), self.staging_directory)
+
+    def __str__(self) -> str:
+        return (
+            f"{super().__str__()}; preserved staging and backups at "
+            f"{self.staging_directory}"
+        )
+
+
+def _unique_json_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ManifestError(f"Duplicate JSON key: {key!r}")
+        result[key] = value
+    return result
+
+
+def _add_recovery_note(failure: BaseException, note_builder) -> None:
+    try:
+        note = note_builder()
+    except BaseException:
+        note = "Recovery diagnostics unavailable"
+    try:
+        failure.add_note(note)
+    except BaseException:
+        pass
 
 
 @dataclass(frozen=True)
@@ -137,7 +186,10 @@ def load_manifest(
     root = root.resolve()
     manifest_path = Path(manifest_path)
     try:
-        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        payload = json.loads(
+            manifest_path.read_text(encoding="utf-8"),
+            object_pairs_hook=_unique_json_object,
+        )
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         raise ManifestError(f"Cannot read photo manifest {manifest_path}: {error}") from error
     roles_payload = _mapping(payload, "manifest")
@@ -331,6 +383,14 @@ def validate_output(path: Path, spec: OutputSpec) -> ValidationResult:
     )
 
 
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def _validate_directory_names(directory: Path, allowed: set[str]) -> None:
     actual = {path.name for path in directory.iterdir() if path.is_file()}
     unexpected = sorted(actual - allowed)
@@ -406,20 +466,32 @@ def promote_staged_outputs(specs: list[OutputSpec], staging_directory: Path) -> 
             except BaseException as error:
                 rollback_errors.append(error)
         if rollback_errors:
-            recoverable = sorted(
-                str(path)
-                for path in staging_directory.rglob("*")
-                if path.is_file()
-            )
-            failure = BaseExceptionGroup(
-                f"Derivative promotion failed: {primary_error}; rollback also failed: "
-                + "; ".join(str(error) for error in rollback_errors)
-                + f"; preserved staging and backups at {staging_directory}; "
-                + "recoverable files: "
-                + ", ".join(recoverable),
+            failure = PromotionRecoveryError(
                 [primary_error, *rollback_errors],
+                staging_directory,
             )
-            failure.preserve_staging = True
+            try:
+                recoverable = sorted(
+                    str(path)
+                    for path in staging_directory.rglob("*")
+                    if path.is_file()
+                )
+            except BaseException as enumeration_error:
+                _add_recovery_note(
+                    failure,
+                    lambda: (
+                        "Recovery-file enumeration failure: "
+                        + str(enumeration_error)
+                    ),
+                )
+            else:
+                _add_recovery_note(
+                    failure,
+                    lambda: (
+                        "Recoverable files: "
+                        + (", ".join(recoverable) if recoverable else "none found")
+                    ),
+                )
             raise failure
         raise
 
@@ -444,11 +516,31 @@ def build(
     if verify:
         if not output_directory.is_dir():
             raise OutputValidationError(f"{output_directory}: output directory is missing")
-        return validate_output_set(
-            selected_specs,
-            output_directory,
-            allowed_names=all_expected_names,
+        verification_directory = output_directory / (
+            f".verification-{os.getpid()}-{uuid.uuid4().hex}"
         )
+        verification_directory.mkdir()
+        try:
+            expected_specs, _ = stage_outputs(
+                roles, selected, verification_directory, root
+            )
+            live_reports = validate_output_set(
+                selected_specs,
+                output_directory,
+                allowed_names=all_expected_names,
+            )
+            for spec in expected_specs:
+                expected_path = verification_directory / spec.path.name
+                expected_sha256 = sha256_file(expected_path)
+                actual_sha256 = sha256_file(spec.path)
+                if actual_sha256 != expected_sha256:
+                    raise OutputValidationError(
+                        f"{spec.path}: stale derivative; expected SHA-256 "
+                        f"{expected_sha256}, got {actual_sha256}; rebuild outputs"
+                    )
+            return live_reports
+        finally:
+            shutil.rmtree(verification_directory, ignore_errors=True)
 
     output_directory.mkdir(parents=True, exist_ok=True)
     staging_directory = output_directory / f".staging-{os.getpid()}"

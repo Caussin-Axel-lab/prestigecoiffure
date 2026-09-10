@@ -118,6 +118,28 @@ class PhotoDerivativeTests(unittest.TestCase):
                 with self.assertRaises(builder.ManifestError):
                     builder.load_manifest(self.manifest_path, self.root)
 
+    def test_manifest_rejects_duplicate_keys_at_every_object_level(self):
+        role = json.dumps(self.valid_manifest()["sample-role"])
+        duplicate_manifests = {
+            "top-level slug": (
+                f'{{"sample-role": {role}, "sample-role": {role}}}',
+                "sample-role",
+            ),
+            "nested field": (
+                json.dumps(self.valid_manifest()).replace(
+                    '"width": 100', '"width": 100, "width": 101', 1
+                ),
+                "width",
+            ),
+        }
+        for label, (document, duplicate_key) in duplicate_manifests.items():
+            with self.subTest(label=label):
+                self.manifest_path.write_text(document, encoding="utf-8")
+                with self.assertRaisesRegex(
+                    builder.ManifestError, rf"Duplicate JSON key.*{duplicate_key}"
+                ):
+                    builder.load_manifest(self.manifest_path, self.root)
+
     def test_one_role_builds_four_clean_progressive_outputs(self):
         reports = builder.build([], manifest_path=self.manifest_path, root=self.root)
         outputs = sorted((self.root / "photosalon" / "web").iterdir())
@@ -171,6 +193,48 @@ class PhotoDerivativeTests(unittest.TestCase):
                 manifest_path=self.manifest_path,
                 root=self.root,
             )
+
+    def test_verify_rejects_outputs_after_source_pixels_change(self):
+        builder.build([], manifest_path=self.manifest_path, root=self.root)
+        source_path = self.root / "photosalon" / "retouched" / "sample-role.png"
+        with Image.open(source_path) as source:
+            changed = source.copy()
+        changed.putpixel((200, 100), (255, 255, 255))
+        changed.save(source_path)
+
+        with self.assertRaisesRegex(
+            builder.OutputValidationError,
+            r"sample-role-desktop\.(jpg|webp).*stale derivative",
+        ):
+            builder.build(
+                ["sample-role"],
+                verify=True,
+                manifest_path=self.manifest_path,
+                root=self.root,
+            )
+        self.assertFalse(
+            list((self.root / "photosalon" / "web").glob(".verification-*"))
+        )
+
+    def test_verify_rejects_outputs_after_focal_point_changes(self):
+        builder.build([], manifest_path=self.manifest_path, root=self.root)
+        payload = self.valid_manifest()
+        payload["sample-role"]["variants"]["desktop"]["focalX"] = 0.65
+        self.write_manifest(payload)
+
+        with self.assertRaisesRegex(
+            builder.OutputValidationError,
+            r"sample-role-desktop\.(jpg|webp).*stale derivative",
+        ):
+            builder.build(
+                ["sample-role"],
+                verify=True,
+                manifest_path=self.manifest_path,
+                root=self.root,
+            )
+        self.assertFalse(
+            list((self.root / "photosalon" / "web").glob(".verification-*"))
+        )
 
     def test_cli_duplicate_and_unknown_slugs_exit_two(self):
         for slugs, phrase in (
@@ -233,6 +297,49 @@ class PhotoDerivativeTests(unittest.TestCase):
         self.assertEqual(len(staging), 1)
         self.assertIn(str(staging[0]), str(raised.exception))
         self.assertTrue(list(staging[0].glob("*.backup")))
+
+    def test_recovery_enumeration_failure_still_preserves_backup_and_staging(self):
+        builder.build([], manifest_path=self.manifest_path, root=self.root)
+        output_dir = self.root / "photosalon" / "web"
+        original = (output_dir / "sample-role-desktop.jpg").read_bytes()
+        real_replace = os.replace
+
+        def fail_promotion_and_restore(source, destination):
+            source = Path(source)
+            destination = Path(destination)
+            if source.name == destination.name == "sample-role-desktop.webp":
+                raise OSError("injected promotion failure")
+            if (
+                source.name.endswith(".backup")
+                and destination.name == "sample-role-desktop.jpg"
+            ):
+                raise OSError("injected restore failure")
+            return real_replace(source, destination)
+
+        with (
+            mock.patch.object(
+                builder.os, "replace", side_effect=fail_promotion_and_restore
+            ),
+            mock.patch.object(
+                builder.Path,
+                "rglob",
+                side_effect=OSError("injected recovery enumeration failure"),
+            ),
+        ):
+            with self.assertRaises(BaseExceptionGroup) as raised:
+                builder.build([], manifest_path=self.manifest_path, root=self.root)
+
+        self.assertTrue(getattr(raised.exception, "preserve_staging", False))
+        self.assertIn(
+            "injected recovery enumeration failure",
+            "\n".join(raised.exception.__notes__),
+        )
+        staging = list(output_dir.glob(".staging-*"))
+        self.assertEqual(len(staging), 1)
+        self.assertIn(str(staging[0]), str(raised.exception))
+        backups = list(staging[0].glob("*.backup"))
+        self.assertTrue(backups)
+        self.assertIn(original, [backup.read_bytes() for backup in backups])
 
 
 if __name__ == "__main__":
