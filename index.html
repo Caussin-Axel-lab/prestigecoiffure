@@ -173,9 +173,14 @@
         </a>
       </div>
     </div>
-    <!-- HERO IMAGE - à remplacer par une photo du salon -->
+    <!-- HERO IMAGE -->
     <div class="hero-image">
-      <img src="photosalon/photo1.jpg" alt="Intérieur du salon Prestige Coiffure">
+      <picture>
+        <source media="(max-width: 900px)" type="image/webp" srcset="photosalon/web/hero-salon-mobile.webp">
+        <source media="(max-width: 900px)" srcset="photosalon/web/hero-salon-mobile.jpg">
+        <source type="image/webp" srcset="photosalon/web/hero-salon-desktop.webp">
+        <img src="photosalon/web/hero-salon-desktop.jpg" width="960" height="1200" alt="L'olivier au cœur du salon Prestige Coiffure à Chalon-sur-Saône" fetchpriority="high">
+      </picture>
       <div class="hero-image-tag">★ Le Salon</div>
     </div>
   </div>
@@ -217,16 +222,31 @@
           </div>
         </div>
       </div>
-      <!-- IMAGES SALON - à remplacer par les vraies photos du salon -->
+      <!-- IMAGES SALON -->
       <div class="salon-images">
         <div class="salon-img tall">
-          <img src="photosalon/photo1.jpg" alt="Coiffure femme — illustration">
+          <picture>
+            <source media="(max-width: 860px)" type="image/webp" srcset="photosalon/web/salon-lounge-mobile.webp">
+            <source media="(max-width: 860px)" srcset="photosalon/web/salon-lounge-mobile.jpg">
+            <source type="image/webp" srcset="photosalon/web/salon-lounge-desktop.webp">
+            <img src="photosalon/web/salon-lounge-desktop.jpg" width="800" height="1200" alt="L'espace lounge du salon Prestige Coiffure" loading="lazy" decoding="async">
+          </picture>
         </div>
         <div class="salon-img">
-          <img src="https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?auto=format&fit=crop&w=600&q=80" alt="Barberie — illustration">
+          <picture>
+            <source media="(max-width: 860px)" type="image/webp" srcset="photosalon/web/salon-barbier-mobile.webp">
+            <source media="(max-width: 860px)" srcset="photosalon/web/salon-barbier-mobile.jpg">
+            <source type="image/webp" srcset="photosalon/web/salon-barbier-desktop.webp">
+            <img src="photosalon/web/salon-barbier-desktop.jpg" width="800" height="800" alt="Le poste de barbier du salon" loading="lazy" decoding="async">
+          </picture>
         </div>
         <div class="salon-img">
-          <img src="https://images.unsplash.com/photo-1487412947147-5cebf100ffc2?auto=format&fit=crop&w=600&q=80" alt="Soin shampoing — illustration">
+          <picture>
+            <source media="(max-width: 860px)" type="image/webp" srcset="photosalon/web/salon-headspa-mobile.webp">
+            <source media="(max-width: 860px)" srcset="photosalon/web/salon-headspa-mobile.jpg">
+            <source type="image/webp" srcset="photosalon/web/salon-headspa-desktop.webp">
+            <img src="photosalon/web/salon-headspa-desktop.jpg" width="800" height="800" alt="La cabine privée dédiée au head spa" loading="lazy" decoding="async">
+          </picture>
         </div>
       </div>
     </div>
@@ -468,7 +488,12 @@
     <!-- Feature : la cabine privée -->
     <div class="feature-cabine">
       <div class="feature-cabine-img">
-        <img src="https://images.unsplash.com/photo-1519415943484-9fa1873496d4?auto=format&fit=crop&w=800&q=80" alt="Cabine de soin — illustration">
+        <picture>
+          <source media="(max-width: 720px)" type="image/webp" srcset="photosalon/web/cabine-headspa-mobile.webp">
+          <source media="(max-width: 720px)" srcset="photosalon/web/cabine-headspa-mobile.jpg">
+          <source type="image/webp" srcset="photosalon/web/cabine-headspa-desktop.webp">
+          <img src="photosalon/web/cabine-headspa-desktop.jpg" width="1440" height="960" alt="La cabine privée de soin head spa du salon Prestige Coiffure" loading="lazy" decoding="async">
+        </picture>
       </div>
       <div class="feature-cabine-body">
         <div class="num">★ Nouvelle cabine privée</div>
