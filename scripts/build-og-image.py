@@ -12,6 +12,7 @@ import argparse
 import os
 import sys
 import tempfile
+import warnings
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageOps, UnidentifiedImageError
@@ -24,6 +25,10 @@ RIGHT_MARGIN = 72
 CREAM = (239, 227, 204)
 TARGET_BYTES = 500 * 1024
 MAX_BYTES = 900 * 1024
+MAX_SOURCE_PIXELS = 40_000_000
+MAX_LOGO_PIXELS = 16_000_000
+MIN_RENDERED_LOGO_HEIGHT = 48
+MAX_RENDERED_LOGO_HEIGHT = 240
 
 
 class OgImageError(RuntimeError):
@@ -48,24 +53,77 @@ def default_paths(root: Path) -> tuple[Path, Path, Path]:
     )
 
 
+def _normalized_path(path: Path, label: str) -> str:
+    try:
+        resolved = Path(path).resolve(strict=False)
+    except (OSError, RuntimeError) as exc:
+        raise InputImageError(f"Cannot resolve {label} path '{path}': {exc}") from exc
+    return os.path.normcase(os.path.normpath(os.fspath(resolved)))
+
+
+def _paths_alias(first: Path, second: Path) -> bool:
+    if _normalized_path(first, "output") == _normalized_path(second, "input"):
+        return True
+    try:
+        return first.exists() and second.exists() and os.path.samefile(first, second)
+    except OSError as exc:
+        raise InputImageError(
+            f"Cannot compare output path '{first}' with input path '{second}': {exc}"
+        ) from exc
+
+
+def _reject_output_aliases(source_path: Path, logo_path: Path, output_path: Path) -> None:
+    for label, input_path in (("source", source_path), ("logo", logo_path)):
+        if _paths_alias(output_path, input_path):
+            raise InputImageError(
+                f"Output path '{output_path}' aliases {label} image '{input_path}'; "
+                "choose a distinct --output path"
+            )
+
+
+def _validate_input_dimensions(size: tuple[int, int], label: str) -> None:
+    width, height = size
+    if width < 2 or height < 2:
+        raise InputImageError(
+            f"Invalid {label} image dimensions {width}x{height}: minimum is 2x2"
+        )
+    limit = MAX_LOGO_PIXELS if label == "logo" else MAX_SOURCE_PIXELS
+    pixels = width * height
+    if pixels > limit:
+        raise InputImageError(
+            f"Invalid {label} image dimensions {width}x{height}: {pixels} pixels "
+            f"exceed application pixel limit {limit}"
+        )
+
+
 def _load_image(path: Path, label: str, *, require_alpha: bool = False) -> Image.Image:
     path = Path(path)
     try:
-        with Image.open(path) as opened:
-            opened.load()
-            if opened.width < 2 or opened.height < 2:
-                raise InputImageError(
-                    f"Invalid {label} image '{path}': dimensions must be at least 2x2"
-                )
-            if require_alpha and "A" not in opened.getbands():
-                raise InputImageError(
-                    f"Invalid {label} image '{path}': an alpha channel is required"
-                )
-            converted = opened.convert("RGBA" if require_alpha else "RGB")
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            with Image.open(path) as opened:
+                _validate_input_dimensions(opened.size, label)
+                opened.load()
+                oriented = ImageOps.exif_transpose(opened)
+                _validate_input_dimensions(oriented.size, label)
+                if require_alpha and "A" not in oriented.getbands():
+                    raise InputImageError(
+                        f"Invalid {label} image '{path}': an alpha channel is required"
+                    )
+                converted = oriented.convert("RGBA" if require_alpha else "RGB")
             converted.info.clear()
             return converted
     except InputImageError:
         raise
+    except (Image.DecompressionBombError, Image.DecompressionBombWarning) as exc:
+        raise InputImageError(
+            f"Cannot read {label} image '{path}': decompression bomb protection "
+            f"triggered: {exc}"
+        ) from exc
+    except MemoryError as exc:
+        raise InputImageError(
+            f"Cannot read {label} image '{path}': insufficient memory while decoding"
+        ) from exc
     except (FileNotFoundError, PermissionError, UnidentifiedImageError, OSError) as exc:
         raise InputImageError(f"Cannot read {label} image '{path}': {exc}") from exc
 
@@ -92,6 +150,12 @@ def _prepare_logo(logo: Image.Image) -> Image.Image:
         raise InputImageError("Invalid logo image: alpha channel contains no visible pixels")
     alpha = alpha.crop(visible_bounds)
     target_height = max(1, round(alpha.height * LOGO_WIDTH / alpha.width))
+    if not MIN_RENDERED_LOGO_HEIGHT <= target_height <= MAX_RENDERED_LOGO_HEIGHT:
+        raise InputImageError(
+            f"Invalid logo dimensions after alpha crop: {alpha.width}x{alpha.height} "
+            f"would render at {LOGO_WIDTH}x{target_height}; allowed height is "
+            f"{MIN_RENDERED_LOGO_HEIGHT}..{MAX_RENDERED_LOGO_HEIGHT}"
+        )
     alpha = alpha.resize((LOGO_WIDTH, target_height), Image.Resampling.LANCZOS)
     cream_logo = Image.new("RGBA", alpha.size, (*CREAM, 0))
     cream_logo.putalpha(alpha)
@@ -160,33 +224,76 @@ def build_og_image(
     *, source_path: Path, logo_path: Path, output_path: Path
 ) -> Path:
     """Build and atomically replace one deterministic Open Graph JPEG."""
-    source = _load_image(Path(source_path), "source")
-    logo = _load_image(Path(logo_path), "logo", require_alpha=True)
+    source_path = Path(source_path)
+    logo_path = Path(logo_path)
+    output_path = Path(output_path)
+    _reject_output_aliases(source_path, logo_path, output_path)
+
+    source = _load_image(source_path, "source")
+    logo = _load_image(logo_path, "logo", require_alpha=True)
     composed = _compose(source, logo)
 
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    temporary_path: Path | None = None
     try:
-        with tempfile.NamedTemporaryFile(
-            dir=output_path.parent,
-            prefix=".og-image-",
-            suffix=".jpg",
-            delete=False,
-        ) as temporary:
-            temporary_path = Path(temporary.name)
-        _save_clean_jpeg(composed, temporary_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise OutputImageError(
+            f"Cannot create output directory '{output_path.parent}': {exc}"
+        ) from exc
+
+    temporary_path: Path | None = None
+    failure: BaseException | None = None
+    try:
+        try:
+            with tempfile.NamedTemporaryFile(
+                dir=output_path.parent,
+                prefix=".og-image-",
+                suffix=".jpg",
+                delete=False,
+            ) as temporary:
+                temporary_path = Path(temporary.name)
+        except OSError as exc:
+            raise OutputImageError(
+                f"Cannot create temporary output beside '{output_path}': {exc}"
+            ) from exc
+
+        try:
+            _save_clean_jpeg(composed, temporary_path)
+        except OutputImageError:
+            raise
+        except OSError as exc:
+            raise OutputImageError(
+                f"Cannot encode temporary output '{temporary_path}': {exc}"
+            ) from exc
         _validate_output(temporary_path)
-        with temporary_path.open("r+b") as encoded:
-            os.fsync(encoded.fileno())
-        os.replace(temporary_path, output_path)
+        try:
+            with temporary_path.open("r+b") as encoded:
+                os.fsync(encoded.fileno())
+        except OSError as exc:
+            raise OutputImageError(
+                f"Cannot sync temporary output '{temporary_path}': {exc}"
+            ) from exc
+        try:
+            os.replace(temporary_path, output_path)
+        except OSError as exc:
+            raise OutputImageError(
+                f"Cannot replace output '{output_path}': {exc}"
+            ) from exc
         temporary_path = None
-    finally:
+    except BaseException as exc:
+        failure = exc
+
+    if failure is not None:
         if temporary_path is not None:
             try:
                 temporary_path.unlink()
             except FileNotFoundError:
                 pass
+            except OSError as cleanup_error:
+                raise OutputImageError(
+                    f"{failure}; cleanup failed for temporary file '{temporary_path}' "
+                    f"(retained for manual recovery): {cleanup_error}"
+                ) from failure
+        raise failure
     return output_path
 
 
