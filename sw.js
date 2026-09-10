@@ -1,6 +1,6 @@
 // Service Worker — offline-first cache stratégie
 // Cache name versionné pour invalidation au déploiement
-const CACHE_VERSION = 'v1.1.0';
+const CACHE_VERSION = 'v1.2.0';
 const CACHE_NAME = 'prestige-' + CACHE_VERSION;
 
 // Ressources statiques à précacher (shell de l'app)
