@@ -3,14 +3,19 @@
 
 import argparse
 import hashlib
+import json
+import os
+import shutil
+import struct
+import uuid
 from pathlib import Path
 from typing import Iterable, NamedTuple
 
-import numpy as np
-from PIL import Image, ImageEnhance, ImageFilter, ImageOps
+from PIL import Image, ImageChops, ImageEnhance, ImageFilter, ImageOps, ImageStat
 
 
 ROOT = Path(__file__).resolve().parent.parent
+HASHES_FILE = ROOT / "scripts" / "photo-master-hashes.json"
 
 
 class RetouchTarget(NamedTuple):
@@ -27,6 +32,7 @@ class ValidationResult(NamedTuple):
     source_size: tuple[int, int]
     output_size: tuple[int, int]
     normalized_mean_absolute_error: float
+    edge_energy_ratio: float
 
 
 def _target(slug: str) -> RetouchTarget:
@@ -62,6 +68,10 @@ def prepare_graded_source(source: Image.Image) -> Image.Image:
 def render_master(source: Image.Image) -> Image.Image:
     """Create the exact 2x salon master from an open source image."""
     graded = prepare_graded_source(source)
+    return render_graded_master(graded)
+
+
+def render_graded_master(graded: Image.Image) -> Image.Image:
     master = graded.resize(
         (graded.width * 2, graded.height * 2),
         Image.Resampling.LANCZOS,
@@ -77,13 +87,54 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def validate_output(slug: str, target: RetouchTarget, source_sha256: str) -> ValidationResult:
-    with Image.open(target.source) as source:
-        oriented = ImageOps.exif_transpose(source).convert("RGB")
-        source_size = oriented.size
-        graded = prepare_graded_source(source)
+def png_chunk_types(path: Path) -> list[str]:
+    chunks: list[str] = []
+    with path.open("rb") as stream:
+        if stream.read(8) != b"\x89PNG\r\n\x1a\n":
+            raise RuntimeError(f"{path}: invalid PNG signature")
+        while True:
+            length_bytes = stream.read(4)
+            if not length_bytes:
+                raise RuntimeError(f"{path}: missing PNG IEND chunk")
+            length = struct.unpack(">I", length_bytes)[0]
+            chunk_type_bytes = stream.read(4)
+            if len(chunk_type_bytes) != 4:
+                raise RuntimeError(f"{path}: truncated PNG chunk")
+            chunk_type = chunk_type_bytes.decode("ascii")
+            if len(stream.read(length + 4)) != length + 4:
+                raise RuntimeError(f"{path}: truncated PNG chunk {chunk_type}")
+            chunks.append(chunk_type)
+            if chunk_type == "IEND":
+                break
+    return chunks
 
-    with Image.open(target.output) as output:
+
+def mean_absolute_pixel_error(left: Image.Image, right: Image.Image) -> float:
+    difference = ImageChops.difference(left, right)
+    means = ImageStat.Stat(difference).mean
+    return float(sum(means) / len(means))
+
+
+def edge_energy_ratio(reference: Image.Image, candidate: Image.Image) -> float:
+    reference_edges = reference.convert("L").filter(ImageFilter.FIND_EDGES)
+    candidate_edges = candidate.convert("L").filter(ImageFilter.FIND_EDGES)
+    reference_energy = float(ImageStat.Stat(reference_edges).mean[0])
+    candidate_energy = float(ImageStat.Stat(candidate_edges).mean[0])
+    if reference_energy == 0.0:
+        return 1.0 if candidate_energy == 0.0 else float("inf")
+    return candidate_energy / reference_energy
+
+
+def validate_staged_output(
+    slug: str,
+    target: RetouchTarget,
+    staged_path: Path,
+    source_sha256: str,
+    graded: Image.Image,
+    rendered: Image.Image,
+) -> ValidationResult:
+    source_size = graded.size
+    with Image.open(staged_path) as output:
         if output.format != "PNG":
             raise RuntimeError(f"{slug}: expected PNG, got {output.format!r}")
         if output.mode != "RGB":
@@ -91,22 +142,36 @@ def validate_output(slug: str, target: RetouchTarget, source_sha256: str) -> Val
         expected_size = (source_size[0] * 2, source_size[1] * 2)
         if output.size != expected_size:
             raise RuntimeError(f"{slug}: expected {expected_size}, got {output.size}")
+        if output.info:
+            raise RuntimeError(f"{slug}: output unexpectedly contains metadata: {output.info}")
         if output.getexif():
-            raise RuntimeError(f"{slug}: output unexpectedly contains EXIF metadata")
+            raise RuntimeError(f"{slug}: output unexpectedly contains EXIF")
         output_size = output.size
+        output.load()
+        if ImageChops.difference(output, rendered).getbbox() is not None:
+            raise RuntimeError(f"{slug}: saved PNG pixels differ from in-memory render")
         downscaled = output.resize(source_size, Image.Resampling.LANCZOS)
 
-    difference = np.abs(
-        np.asarray(downscaled, dtype=np.int16) - np.asarray(graded, dtype=np.int16)
-    )
-    normalized_error = float(difference.mean())
+    chunks = png_chunk_types(staged_path)
+    if not chunks or chunks[0] != "IHDR" or chunks[-1] != "IEND":
+        raise RuntimeError(f"{slug}: invalid PNG chunk order: {chunks}")
+    unexpected_chunks = sorted(set(chunks) - {"IHDR", "IDAT", "IEND"})
+    if unexpected_chunks:
+        raise RuntimeError(f"{slug}: unexpected PNG chunks: {unexpected_chunks}")
+
+    normalized_error = mean_absolute_pixel_error(downscaled, graded)
     if normalized_error > 4.0:
         raise RuntimeError(
             f"{slug}: normalized mean absolute pixel error "
             f"{normalized_error:.4f} exceeds 4.0"
         )
+    energy_ratio = edge_energy_ratio(graded, downscaled)
+    if not 0.85 <= energy_ratio <= 1.25:
+        raise RuntimeError(
+            f"{slug}: edge-energy ratio {energy_ratio:.4f} is outside 0.85..1.25"
+        )
 
-    with Image.open(target.output) as output:
+    with Image.open(staged_path) as output:
         output.verify()
 
     return ValidationResult(
@@ -117,7 +182,146 @@ def validate_output(slug: str, target: RetouchTarget, source_sha256: str) -> Val
         source_size=source_size,
         output_size=output_size,
         normalized_mean_absolute_error=normalized_error,
+        edge_energy_ratio=energy_ratio,
     )
+
+
+def process_target(
+    slug: str,
+    target: RetouchTarget,
+    staged_path: Path,
+    source_sha256: str,
+) -> ValidationResult:
+    with Image.open(target.source) as source:
+        graded = prepare_graded_source(source)
+    rendered = render_graded_master(graded)
+    rendered.info.clear()
+    rendered.save(staged_path, format="PNG", optimize=True)
+    report = validate_staged_output(
+        slug,
+        target,
+        staged_path,
+        source_sha256,
+        graded,
+        rendered,
+    )
+    if sha256_file(target.source) != source_sha256:
+        raise RuntimeError(f"{slug}: source file changed during processing")
+    return report
+
+
+def load_hash_manifest() -> dict[str, dict[str, str]]:
+    try:
+        payload = json.loads(HASHES_FILE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise RuntimeError(f"Cannot read photo hash manifest {HASHES_FILE}: {error}") from error
+    if not isinstance(payload, dict):
+        raise RuntimeError(f"Invalid photo hash manifest {HASHES_FILE}: expected object")
+    for section in ("sources", "outputs"):
+        if not isinstance(payload.get(section), dict):
+            raise RuntimeError(
+                f"Invalid photo hash manifest {HASHES_FILE}: missing {section!r} object"
+            )
+    return payload
+
+
+def validate_source_hashes(
+    selected: list[str], manifest: dict[str, dict[str, str]]
+) -> dict[str, str]:
+    hashes: dict[str, str] = {}
+    for slug in selected:
+        expected = manifest["sources"].get(slug)
+        if not isinstance(expected, str):
+            raise RuntimeError(f"{slug}: source SHA-256 is missing from {HASHES_FILE}")
+        actual = sha256_file(RETOUCHES[slug].source)
+        if actual != expected:
+            raise RuntimeError(
+                f"{slug}: source SHA-256 mismatch; expected {expected}, got {actual}"
+            )
+        hashes[slug] = actual
+    return hashes
+
+
+def validate_committed_output_hashes(
+    selected: list[str],
+    manifest: dict[str, dict[str, str]],
+    paths: dict[str, Path] | None = None,
+) -> None:
+    for slug in selected:
+        expected = manifest["outputs"].get(slug)
+        if not isinstance(expected, str):
+            raise RuntimeError(f"{slug}: output SHA-256 is missing from {HASHES_FILE}")
+        output_path = RETOUCHES[slug].output if paths is None else paths[slug]
+        actual = sha256_file(output_path)
+        if actual != expected:
+            raise RuntimeError(
+                f"{slug}: committed output SHA-256 mismatch; "
+                f"expected {expected}, got {actual}"
+            )
+
+
+def source_integrity_issues(before: dict[str, str]) -> list[Exception]:
+    issues: list[Exception] = []
+    for slug, expected in before.items():
+        try:
+            actual = sha256_file(RETOUCHES[slug].source)
+        except Exception as error:
+            issue = RuntimeError(f"{slug}: source re-hash failed: {error}")
+            issue.__cause__ = error
+            issues.append(issue)
+            continue
+        if actual != expected:
+            issues.append(
+                RuntimeError(
+                    f"{slug}: source file changed; expected SHA-256 {expected}, got {actual}"
+                )
+            )
+    return issues
+
+
+def promote_staged_outputs(
+    selected: list[str], staged: dict[str, Path], staging_directory: Path
+) -> None:
+    backups: dict[str, Path] = {}
+    attempted: list[str] = []
+    promoted: list[str] = []
+    try:
+        for slug in selected:
+            destination = RETOUCHES[slug].output
+            if destination.exists():
+                backup = staging_directory / f"{slug}.{uuid.uuid4().hex}.backup"
+                os.replace(destination, backup)
+                backups[slug] = backup
+
+        for slug in selected:
+            attempted.append(slug)
+            os.replace(staged[slug], RETOUCHES[slug].output)
+            promoted.append(slug)
+    except BaseException as primary_error:
+        rollback_errors: list[BaseException] = []
+        for slug in reversed(attempted):
+            destination = RETOUCHES[slug].output
+            try:
+                if destination.exists():
+                    destination.unlink()
+            except BaseException as error:
+                rollback_errors.append(error)
+        for slug in reversed(selected):
+            backup = backups.get(slug)
+            if backup is None:
+                continue
+            try:
+                if backup.exists():
+                    os.replace(backup, RETOUCHES[slug].output)
+            except BaseException as error:
+                rollback_errors.append(error)
+        if rollback_errors:
+            raise BaseExceptionGroup(
+                f"Photo promotion failed: {primary_error}; rollback also failed: "
+                + "; ".join(str(error) for error in rollback_errors),
+                [primary_error, *rollback_errors],
+            )
+        raise
 
 
 def select_slugs(slugs: Iterable[str] | None) -> list[str]:
@@ -131,28 +335,53 @@ def select_slugs(slugs: Iterable[str] | None) -> list[str]:
     return selected
 
 
-def build(slugs: Iterable[str] | None = None) -> list[ValidationResult]:
+def build(
+    slugs: Iterable[str] | None = None,
+    *,
+    verify_committed: bool = False,
+) -> list[ValidationResult]:
     selected = select_slugs(slugs)
-
-    before = {slug: sha256_file(RETOUCHES[slug].source) for slug in selected}
+    manifest = load_hash_manifest()
+    before = validate_source_hashes(selected, manifest)
+    output_directories = {RETOUCHES[slug].output.parent for slug in selected}
+    if len(output_directories) != 1:
+        raise RuntimeError("All retouched outputs must share one staging filesystem")
+    output_directory = output_directories.pop()
+    output_directory.mkdir(parents=True, exist_ok=True)
+    staging_directory = output_directory / f".staging-{os.getpid()}"
+    staging_directory.mkdir(exist_ok=False)
     reports: list[ValidationResult] = []
+    staged: dict[str, Path] = {}
     try:
-        for slug in selected:
-            target = RETOUCHES[slug]
-            target.output.parent.mkdir(parents=True, exist_ok=True)
-            with Image.open(target.source) as source:
-                master = render_master(source)
-            master.info.clear()
-            master.save(target.output, format="PNG", optimize=True)
-            reports.append(validate_output(slug, target, before[slug]))
+        try:
+            for slug in selected:
+                staged_path = staging_directory / (
+                    f"{slug}.{uuid.uuid4().hex}.candidate.png"
+                )
+                staged[slug] = staged_path
+                reports.append(
+                    process_target(slug, RETOUCHES[slug], staged_path, before[slug])
+                )
+            if verify_committed:
+                validate_committed_output_hashes(selected, manifest, staged)
+            promote_staged_outputs(selected, staged, staging_directory)
+        except BaseException as primary_error:
+            integrity_issues = source_integrity_issues(before)
+            if integrity_issues:
+                raise BaseExceptionGroup(
+                    f"Photo build failed: {primary_error}; "
+                    "source integrity recheck also failed: "
+                    + "; ".join(str(error) for error in integrity_issues),
+                    [primary_error, *integrity_issues],
+                )
+            raise
+        integrity_issues = source_integrity_issues(before)
+        if integrity_issues:
+            if len(integrity_issues) == 1:
+                raise integrity_issues[0]
+            raise ExceptionGroup("Source integrity checks failed", integrity_issues)
     finally:
-        changed = [
-            slug
-            for slug in selected
-            if sha256_file(RETOUCHES[slug].source) != before[slug]
-        ]
-        if changed:
-            raise RuntimeError(f"Source file changed unexpectedly: {', '.join(changed)}")
+        shutil.rmtree(staging_directory, ignore_errors=True)
 
     return reports
 
@@ -167,9 +396,14 @@ def main(argv: list[str] | None = None) -> int:
         metavar="SLUG",
         help="optional salon photo slug; omit to build all five",
     )
+    parser.add_argument(
+        "--verify-committed",
+        action="store_true",
+        help="require rebuilt output hashes to match photo-master-hashes.json",
+    )
     args = parser.parse_args(argv)
     try:
-        reports = build(args.slugs)
+        reports = build(args.slugs, verify_committed=args.verify_committed)
     except ValueError as error:
         parser.error(str(error))
 
@@ -178,8 +412,11 @@ def main(argv: list[str] | None = None) -> int:
             f"OK {report.slug}: {report.source_size[0]}x{report.source_size[1]} -> "
             f"{report.output_size[0]}x{report.output_size[1]} PNG RGB; "
             f"NMAE={report.normalized_mean_absolute_error:.4f}; "
+            f"edge_ratio={report.edge_energy_ratio:.4f}; "
             f"source_sha256={report.source_sha256}"
         )
+    if args.verify_committed:
+        print("Committed output SHA-256 values verified.")
     print(f"Validated {len(reports)} master(s); source SHA-256 unchanged.")
     return 0
 

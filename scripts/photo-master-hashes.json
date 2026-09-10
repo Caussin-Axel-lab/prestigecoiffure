@@ -1,0 +1,16 @@
+{
+  "sources": {
+    "hero-salon": "c2a7cac76fa04fad00da67c26b98a9ed365f10f57bd3fec233b7cedc7abb9e3e",
+    "salon-lounge": "96c9fc9d637b38a596835811e6ef0949fd3c383804b77daca71bd858cc3a63cc",
+    "salon-barbier": "f5fb21e0ef6e55600c2be606a3b12b2f6c7e68924cb0e671076e8cee5049706f",
+    "salon-headspa": "f30caf28c5cb6f709ea1294506184460e2b44bca2e75e100eeafd429287f00cb",
+    "cabine-headspa": "45a41dff246e93d38abf49f54cb2997072ff90b340bf2bb588c736fadd1b0f2a"
+  },
+  "outputs": {
+    "hero-salon": "67413f8ef5d74fef3578e15c98c15a1d42c4795cfba15ab420b25ad39879d7c8",
+    "salon-lounge": "96972a8091cfd73a2a8e3f1694b96394247b4f8484220680c5e21b64a2aec662",
+    "salon-barbier": "4b4772ba08c4b80d5e71a8480570e64c490cb00efac2cc5eb3086c8da179a025",
+    "salon-headspa": "9f3d9552b9f049270d9af637403baa84680d7cf45ea7d93c527908e69786d757",
+    "cabine-headspa": "98e9137171ef70d316f8b80df789aa16c88a5fbd55f526d1734abbc25ec5bf29"
+  }
+}
