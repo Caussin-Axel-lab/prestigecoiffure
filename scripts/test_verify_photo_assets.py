@@ -736,6 +736,134 @@ class PhotoAssetVerifierTests(unittest.TestCase):
         self.assertIn("scripts/photo-manifest.json: hero-salon.input", errors)
         self.assertIn("case mismatch", errors)
 
+    def test_nonvoid_self_closing_template_is_rejected_and_kept_inert(self):
+        service = self.root / "services" / "balayage.html"
+        service.write_text(
+            "<template/>" + service.read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+
+        errors = "\n".join(self.errors())
+
+        self.assertIn(
+            "services/balayage.html:1: <template/> self-closing syntax is invalid for a non-void HTML element",
+            errors,
+        )
+        self.assertIn("premium picture must not be inside <template>", errors)
+
+    def test_self_closing_elements_in_inline_svg_are_allowed(self):
+        service = self.root / "services" / "balayage.html"
+        service.write_text(
+            '<svg viewBox="0 0 1 1"><path d="M0 0L1 1"/></svg>'
+            + service.read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+
+        errors = "\n".join(self.errors())
+
+        self.assertNotIn("self-closing syntax is invalid", errors)
+
+    def test_premium_markup_inside_textarea_is_rejected_as_inert(self):
+        service = self.root / "services" / "balayage.html"
+        service.write_text(
+            "<textarea>" + service.read_text(encoding="utf-8") + "</textarea>",
+            encoding="utf-8",
+        )
+
+        errors = "\n".join(self.errors())
+
+        self.assertIn(
+            "services/balayage.html: service hero figure must not be inside <textarea>",
+            errors,
+        )
+        self.assertIn(
+            "services/balayage.html: premium picture must not be inside <textarea>",
+            errors,
+        )
+
+    def test_local_url_backslashes_are_rejected_before_resolution(self):
+        retired = self.root / "services" / "lissage-ybera.html"
+        for reference in (
+            r"..\ASSETS\OG-IMAGE.JPG",
+            "../assets%5Cog-image.jpg",
+            "../assets/%5cog-image.jpg",
+            r"../assets\og-image.jpg",
+        ):
+            with self.subTest(reference=reference):
+                retired.write_text(f'<img src="{reference}">', encoding="utf-8")
+                errors = "\n".join(self.errors())
+                self.assertIn("backslash is not allowed in a local URL", errors)
+
+    def test_oversized_master_is_rejected_without_opening_it(self):
+        master = self.root / "photosalon" / "retouched" / "hero-salon.png"
+        master.write_bytes(master.read_bytes() + b"x" * 25_000_001)
+        with mock.patch.object(verifier.Image, "open", wraps=Image.open) as opened:
+            errors = "\n".join(self.errors())
+
+        opened_paths = [Path(call.args[0]) for call in opened.call_args_list]
+        self.assertNotIn(master, opened_paths)
+        self.assertIn("hero-salon master", errors)
+        self.assertIn("exceeds master byte limit", errors)
+
+    def test_master_decompression_warning_is_aggregated_without_repeat_decode(self):
+        master = self.root / "photosalon" / "retouched" / "hero-salon.png"
+        with (
+            mock.patch.object(verifier.Image, "MAX_IMAGE_PIXELS", 12),
+            mock.patch.object(verifier.Image, "open", wraps=Image.open) as opened,
+        ):
+            errors = "\n".join(self.errors())
+
+        master_opens = [
+            call for call in opened.call_args_list if Path(call.args[0]) == master
+        ]
+        self.assertLessEqual(len(master_opens), 1)
+        self.assertIn("hero-salon master", errors)
+        self.assertIn("decompression bomb", errors.lower())
+
+    def test_pathological_variant_dimensions_are_rejected_before_worker(self):
+        manifest_path = self.root / "scripts" / "photo-manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["hero-salon"]["variants"]["desktop"]["width"] = 5000
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+        with mock.patch("subprocess.run") as worker:
+            errors = "\n".join(self.errors())
+
+        worker.assert_not_called()
+        self.assertIn("hero-salon.desktop", errors)
+        self.assertIn("variant dimension limit", errors)
+
+    def test_pathological_variant_pixel_count_is_rejected(self):
+        manifest_path = self.root / "scripts" / "photo-manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        variant = manifest["hero-salon"]["variants"]["desktop"]
+        variant["width"] = 4096
+        variant["height"] = 4096
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        errors = []
+
+        verifier._load_manifest(self.root, errors)
+
+        self.assertIn("variant pixel limit", "\n".join(errors))
+
+    def test_worker_timeout_is_aggregated_and_staging_is_cleaned(self):
+        observed = {}
+
+        def time_out(command, **kwargs):
+            self.assertIn("-I", command)
+            self.assertEqual(kwargs["timeout"], 120)
+            staging = Path(command[command.index("--worker-staging") + 1])
+            observed["staging"] = staging
+            self.assertTrue(staging.is_dir())
+            raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+
+        with mock.patch("subprocess.run", side_effect=time_out):
+            errors = "\n".join(self.errors())
+
+        self.assertIn("trusted derivative worker timed out after 120 seconds", errors)
+        self.assertIn("staging", observed)
+        self.assertFalse(observed["staging"].exists())
+
     def test_cache_version_and_no_derivative_precache_are_enforced(self):
         self.fixture.write_service_worker(precache="'/photosalon/web/hero-salon-desktop.jpg'")
         sw = self.root / "sw.js"

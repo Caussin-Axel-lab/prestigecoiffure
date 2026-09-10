@@ -8,6 +8,7 @@ import hashlib
 import importlib.util
 import json
 import re
+import subprocess
 import sys
 import tempfile
 import warnings
@@ -24,6 +25,12 @@ ROOT = Path(__file__).resolve().parent.parent
 MAX_IMAGE_BYTES = 900_000
 MAX_DECODE_PIXELS = 40_000_000
 MAX_IMAGE_DIMENSION = 10_000
+MAX_MASTER_BYTES = 25_000_000
+MAX_MASTER_PIXELS = 40_000_000
+MAX_MASTER_DIMENSION = 10_000
+MAX_VARIANT_PIXELS = 16_000_000
+MAX_VARIANT_DIMENSION = 4_096
+WORKER_TIMEOUT_SECONDS = 120
 EXPECTED_ROLE_SLUGS = (
     "hero-salon",
     "salon-lounge",
@@ -83,6 +90,26 @@ ACTIVE_HTML_FILES = (
     *(f"services/{slug}.html" for slug in LOCAL_SERVICE_SLUGS[4:]),
 )
 REMOTE_SCHEMES = {"http", "https", "data"}
+HTML_VOID_ELEMENTS = frozenset(
+    {
+        "area",
+        "base",
+        "br",
+        "col",
+        "embed",
+        "hr",
+        "img",
+        "input",
+        "link",
+        "meta",
+        "param",
+        "source",
+        "track",
+        "wbr",
+    }
+)
+INERT_HTML_ELEMENTS = frozenset({"template", "textarea", "script", "style", "noscript"})
+FOREIGN_CONTENT_ROOTS = frozenset({"math", "svg"})
 
 
 class LocalPathError(ValueError):
@@ -95,7 +122,7 @@ class Picture:
     image: dict[str, str] | None = None
     images: list[dict[str, str]] = field(default_factory=list)
     parent_figure: Figure | None = None
-    inside_template: bool = False
+    inert_ancestor: str | None = None
     line: int = 0
 
 
@@ -104,7 +131,7 @@ class Figure:
     attributes: dict[str, str]
     images: list[dict[str, str]] = field(default_factory=list)
     pictures: list[Picture] = field(default_factory=list)
-    inside_template: bool = False
+    inert_ancestor: str | None = None
     line: int = 0
 
 
@@ -135,8 +162,21 @@ class PhotoHTMLParser(HTMLParser):
                 return value
         return None
 
-    def _inside_template(self) -> bool:
-        return any(tag == "template" for tag, _value, _line in self._containers)
+    def _inert_ancestor(self) -> str | None:
+        return next(
+            (
+                tag
+                for tag, _value, _line in reversed(self._containers)
+                if tag in INERT_HTML_ELEMENTS
+            ),
+            None,
+        )
+
+    def _inside_foreign_content(self) -> bool:
+        return any(
+            tag in FOREIGN_CONTENT_ROOTS
+            for tag, _value, _line in self._containers
+        )
 
     def handle_starttag(
         self, tag: str, attributes: list[tuple[str, str | None]]
@@ -166,7 +206,7 @@ class PhotoHTMLParser(HTMLParser):
             line, _offset = self.getpos()
             figure = Figure(
                 attributes=attrs,
-                inside_template=self._inside_template(),
+                inert_ancestor=self._inert_ancestor(),
                 line=line,
             )
             self.figures.append(figure)
@@ -178,14 +218,17 @@ class PhotoHTMLParser(HTMLParser):
                 parent = None
             picture = Picture(
                 parent_figure=parent,
-                inside_template=self._inside_template(),
+                inert_ancestor=self._inert_ancestor(),
                 line=line,
             )
             self.pictures.append(picture)
             self._containers.append((tag, picture, line))
             if parent is not None:
                 parent.pictures.append(picture)
-        elif tag == "template":
+        elif tag in INERT_HTML_ELEMENTS:
+            line, _offset = self.getpos()
+            self._containers.append((tag, None, line))
+        elif tag in FOREIGN_CONTENT_ROOTS:
             line, _offset = self.getpos()
             self._containers.append((tag, None, line))
         elif tag == "source":
@@ -206,12 +249,20 @@ class PhotoHTMLParser(HTMLParser):
     def handle_startendtag(
         self, tag: str, attributes: list[tuple[str, str | None]]
     ) -> None:
-        if self.handle_starttag(tag, attributes):
+        tag = tag.lower()
+        is_foreign = self._inside_foreign_content() or tag in FOREIGN_CONTENT_ROOTS
+        is_nonvoid = tag not in HTML_VOID_ELEMENTS and not is_foreign
+        if is_nonvoid:
+            line, _offset = self.getpos()
+            self.diagnostics.append(
+                f"{line}: <{tag}/> self-closing syntax is invalid for a non-void HTML element"
+            )
+        if self.handle_starttag(tag, attributes) and not is_nonvoid:
             self.handle_endtag(tag)
 
     def handle_endtag(self, tag: str) -> None:
         tag = tag.lower()
-        if tag not in {"template", "figure", "picture"}:
+        if tag not in INERT_HTML_ELEMENTS | FOREIGN_CONTENT_ROOTS | {"figure", "picture"}:
             return
         matching = [
             index
@@ -338,12 +389,15 @@ def _repository_path(root: Path, relative_path: str) -> Path:
 
 
 def _local_path(root: Path, document: Path, reference: str) -> Path | None:
+    stripped = reference.strip()
     try:
-        parsed = urlsplit(reference.strip())
+        parsed = urlsplit(stripped)
     except ValueError:
         return None
     if parsed.scheme.lower() in REMOTE_SCHEMES or parsed.netloc:
         return None
+    if "\\" in stripped or "\\" in unquote(stripped):
+        raise LocalPathError("backslash is not allowed in a local URL")
     url_path = unquote(parsed.path)
     if not url_path:
         return None
@@ -437,7 +491,11 @@ def _positive_dimension(value: object) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value > 0
 
 
-def _load_manifest(root: Path, errors: list[str]) -> dict[str, dict[str, tuple[int, int]]]:
+def _load_manifest(
+    root: Path,
+    errors: list[str],
+    sources: dict[str, Path] | None = None,
+) -> dict[str, dict[str, tuple[int, int]]]:
     try:
         manifest_path = _repository_path(root, "scripts/photo-manifest.json")
     except LocalPathError as error:
@@ -478,11 +536,18 @@ def _load_manifest(root: Path, errors: list[str]) -> dict[str, dict[str, tuple[i
             )
         else:
             try:
-                _repository_path(root, input_path)
+                source = _repository_path(root, input_path)
             except LocalPathError as error:
                 errors.append(
                     f"scripts/photo-manifest.json: {slug}.input: {error}"
                 )
+            else:
+                if not source.is_file():
+                    errors.append(
+                        f"scripts/photo-manifest.json: {slug}.input: expected a file"
+                    )
+                elif sources is not None:
+                    sources[slug] = source
         variants = role.get("variants")
         if not isinstance(variants, dict) or set(variants) != {"desktop", "mobile"}:
             errors.append(
@@ -502,6 +567,20 @@ def _load_manifest(root: Path, errors: list[str]) -> dict[str, dict[str, tuple[i
             if not _positive_dimension(width) or not _positive_dimension(height):
                 errors.append(
                     f"scripts/photo-manifest.json: {slug}.{variant_name} has invalid dimensions"
+                )
+                continue
+            if width > MAX_VARIANT_DIMENSION or height > MAX_VARIANT_DIMENSION:
+                errors.append(
+                    f"scripts/photo-manifest.json: {slug}.{variant_name} dimensions "
+                    f"{width}x{height} exceed variant dimension limit "
+                    f"{MAX_VARIANT_DIMENSION}"
+                )
+                continue
+            if width * height > MAX_VARIANT_PIXELS:
+                errors.append(
+                    f"scripts/photo-manifest.json: {slug}.{variant_name} has "
+                    f"{width * height} pixels, exceeding variant pixel limit "
+                    f"{MAX_VARIANT_PIXELS}"
                 )
                 continue
             dimensions[variant_name] = (width, height)
@@ -537,6 +616,72 @@ def _enforce_decode_bounds(image: Image.Image) -> None:
         raise ValueError(
             f"{pixels} pixels exceed pixel limit {MAX_DECODE_PIXELS}"
         )
+
+
+def _enforce_master_bounds(image: Image.Image) -> None:
+    width, height = image.size
+    if width > MAX_MASTER_DIMENSION or height > MAX_MASTER_DIMENSION:
+        raise ValueError(
+            f"dimensions {width}x{height} exceed master dimension limit "
+            f"{MAX_MASTER_DIMENSION}"
+        )
+    pixels = width * height
+    if pixels > MAX_MASTER_PIXELS:
+        raise ValueError(
+            f"{pixels} pixels exceed master pixel limit {MAX_MASTER_PIXELS}"
+        )
+
+
+def _check_master(root: Path, slug: str, path: Path, errors: list[str]) -> bool:
+    label = f"{slug} master {_relative(root, path)}"
+    try:
+        size = path.stat().st_size
+    except OSError as error:
+        errors.append(f"{label}: cannot stat image: {_error_detail(root, error)}")
+        return False
+    if size > MAX_MASTER_BYTES:
+        errors.append(
+            f"{label}: {size} bytes exceeds master byte limit {MAX_MASTER_BYTES}"
+        )
+        return False
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            with Image.open(path) as image:
+                _enforce_master_bounds(image)
+                if image.format != "PNG":
+                    raise ValueError(f"expected PNG, got {image.format!r}")
+                if image.mode not in {"RGB", "RGBA"}:
+                    raise ValueError(f"expected RGB or RGBA, got {image.mode!r}")
+                image.verify()
+            with Image.open(path) as image:
+                _enforce_master_bounds(image)
+                if image.format != "PNG":
+                    raise ValueError(f"expected PNG, got {image.format!r}")
+                if image.mode not in {"RGB", "RGBA"}:
+                    raise ValueError(f"expected RGB or RGBA, got {image.mode!r}")
+                image.load()
+    except (
+        Image.DecompressionBombError,
+        Image.DecompressionBombWarning,
+        MemoryError,
+        UnidentifiedImageError,
+        OSError,
+        SyntaxError,
+        ValueError,
+    ) as error:
+        errors.append(f"{label}: invalid image: {_error_detail(root, error)}")
+        return False
+    return True
+
+
+def _check_masters(root: Path, sources: dict[str, Path], errors: list[str]) -> bool:
+    valid = len(sources) == len(EXPECTED_ROLE_SLUGS)
+    for slug in EXPECTED_ROLE_SLUGS:
+        source = sources.get(slug)
+        if source is not None and not _check_master(root, slug, source, errors):
+            valid = False
+    return valid
 
 
 def _check_image(
@@ -779,9 +924,10 @@ def _check_picture(
         )
         return None
     picture = candidates[0]
-    if picture.inside_template:
+    if picture.inert_ancestor:
         errors.append(
-            f"{relative_path}: premium picture must not be inside <template>"
+            f"{relative_path}: premium picture must not be inside "
+            f"<{picture.inert_ancestor}>"
         )
     actual_paths = _picture_paths(root, relative_path, picture)
     if actual_paths != expected_paths:
@@ -935,9 +1081,10 @@ def _check_premium_html(
             errors.append(
                 f"{relative_path}: service hero figure must be cinematic"
             )
-        if hero is not None and hero.inside_template:
+        if hero is not None and hero.inert_ancestor:
             errors.append(
-                f"{relative_path}: service hero figure must not be inside <template>"
+                f"{relative_path}: service hero figure must not be inside "
+                f"<{hero.inert_ancestor}>"
             )
         picture = _check_picture(
             root,
@@ -975,9 +1122,10 @@ def _check_premium_html(
             )
             return
         hero = hero_figures[0]
-        if hero.inside_template:
+        if hero.inert_ancestor:
             errors.append(
-                f"{child_path}: service hero figure must not be inside <template>"
+                f"{child_path}: service hero figure must not be inside "
+                f"<{hero.inert_ancestor}>"
             )
         classes = set(hero.attributes.get("class", "").split())
         if "service-hero-image--temporary" not in classes:
@@ -1065,18 +1213,99 @@ def _load_trusted_builder():
     return module
 
 
+def _run_trusted_worker(root: Path, staging: Path) -> dict[str, str]:
+    try:
+        staging.relative_to(root)
+    except ValueError:
+        pass
+    else:
+        raise RuntimeError("system temporary directory is inside audited root")
+    if not staging.is_dir() or any(staging.iterdir()):
+        raise RuntimeError("trusted worker staging directory must exist and be empty")
+
+    errors: list[str] = []
+    sources: dict[str, Path] = {}
+    roles = _load_manifest(root, errors, sources)
+    manifest_valid = (
+        not errors
+        and len(roles) == len(EXPECTED_ROLE_SLUGS)
+        and len(sources) == len(EXPECTED_ROLE_SLUGS)
+    )
+    masters_valid = _check_masters(root, sources, errors)
+    if not manifest_valid or not masters_valid or errors:
+        raise RuntimeError("; ".join(errors))
+
+    builder = _load_trusted_builder()
+    manifest_path = _repository_path(root, "scripts/photo-manifest.json")
+    trusted_roles = builder.load_manifest(manifest_path, root)
+    selected = builder.select_slugs(EXPECTED_ROLE_SLUGS, trusted_roles)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", Image.DecompressionBombWarning)
+        specs, _reports = builder.stage_outputs(
+            trusted_roles, selected, staging, root
+        )
+    generated_names = {spec.path.name for spec in specs}
+    expected_names = set(_expected_derivatives(roles))
+    if generated_names != expected_names or len(specs) != len(expected_names):
+        raise RuntimeError("trusted builder generated an unexpected derivative name set")
+    staged_names = {entry.name for entry in staging.iterdir() if entry.is_file()}
+    if staged_names != expected_names:
+        raise RuntimeError("trusted builder staged an unexpected derivative name set")
+    return {name: _sha256(staging / name) for name in sorted(expected_names)}
+
+
+def _decode_worker_result(
+    root: Path,
+    completed: subprocess.CompletedProcess[str],
+    expected_names: set[str],
+    staging: Path,
+) -> dict[str, str]:
+    try:
+        payload = json.loads(completed.stdout.strip())
+    except (AttributeError, json.JSONDecodeError) as error:
+        detail = completed.stderr.strip() or completed.stdout.strip() or str(error)
+        raise RuntimeError(
+            f"trusted derivative worker returned invalid structured output: "
+            f"{_sanitize_subprocess_output(root, detail)}"
+        ) from error
+    if not isinstance(payload, dict) or payload.get("ok") is not True:
+        detail = payload.get("error") if isinstance(payload, dict) else payload
+        raise RuntimeError(
+            "trusted derivative worker failed: "
+            f"{_sanitize_subprocess_output(root, str(detail))}"
+        )
+    files = payload.get("files")
+    if not isinstance(files, dict) or set(files) != expected_names:
+        raise RuntimeError("trusted derivative worker returned an unexpected name set")
+    staged_entries = list(staging.iterdir())
+    if (
+        {entry.name for entry in staged_entries} != expected_names
+        or any(not entry.is_file() for entry in staged_entries)
+    ):
+        raise RuntimeError("trusted derivative worker staged an unexpected name set")
+    for name, digest in files.items():
+        if not isinstance(digest, str) or re.fullmatch(r"[0-9a-f]{64}", digest) is None:
+            raise RuntimeError("trusted derivative worker returned an invalid hash")
+        staged_path = staging / name
+        if not staged_path.is_file() or _sha256(staged_path) != digest:
+            raise RuntimeError("trusted derivative worker hash revalidation failed")
+    if completed.returncode != 0:
+        raise RuntimeError("trusted derivative worker exited unsuccessfully")
+    return files
+
+
 def _check_builder(
     root: Path,
     roles: dict[str, dict[str, tuple[int, int]]],
     errors: list[str],
+    *,
+    ready: bool,
 ) -> None:
     before = _derivative_snapshot(root)
     expected_names = set(_expected_derivatives(roles))
     try:
-        builder = _load_trusted_builder()
-        manifest_path = _repository_path(root, "scripts/photo-manifest.json")
-        trusted_roles = builder.load_manifest(manifest_path, root)
-        selected = builder.select_slugs(EXPECTED_ROLE_SLUGS, trusted_roles)
+        if not ready:
+            return
         with tempfile.TemporaryDirectory(prefix="verify-photo-assets-") as temporary:
             staging = Path(temporary).resolve()
             try:
@@ -1085,23 +1314,42 @@ def _check_builder(
                 pass
             else:
                 raise RuntimeError("system temporary directory is inside audited root")
-            specs, _reports = builder.stage_outputs(
-                trusted_roles, selected, staging, root
-            )
-            generated_names = {spec.path.name for spec in specs}
-            if generated_names != expected_names:
-                raise RuntimeError(
-                    "trusted builder generated an unexpected derivative name set"
+            command = [
+                sys.executable,
+                "-I",
+                "-B",
+                str(Path(__file__).resolve()),
+                "--worker-root",
+                str(root),
+                "--worker-staging",
+                str(staging),
+            ]
+            try:
+                completed = subprocess.run(
+                    command,
+                    cwd=str(Path(__file__).resolve().parent),
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=WORKER_TIMEOUT_SECONDS,
                 )
-            for spec in specs:
-                live = root / "photosalon" / "web" / spec.path.name
-                generated = staging / spec.path.name
+            except subprocess.TimeoutExpired:
+                errors.append(
+                    "trusted derivative worker timed out after "
+                    f"{WORKER_TIMEOUT_SECONDS} seconds"
+                )
+                return
+            generated_hashes = _decode_worker_result(
+                root, completed, expected_names, staging
+            )
+            for name, generated_hash in generated_hashes.items():
+                live = root / "photosalon" / "web" / name
                 if not live.is_file():
                     continue
-                if _sha256(live) != _sha256(generated):
+                if _sha256(live) != generated_hash:
                     errors.append(
                         "trusted derivative verification: "
-                        f"photosalon/web/{spec.path.name}: stale derivative"
+                        f"photosalon/web/{name}: stale derivative"
                     )
     except Exception as error:
         errors.append(
@@ -1114,7 +1362,7 @@ def _check_builder(
             errors.append(
                 "trusted derivative verification mutated photosalon/web contents"
             )
-        if after is not None and expected_names and set(after) != expected_names:
+        if after is not None and len(expected_names) == 56 and set(after) != expected_names:
             errors.append(
                 "trusted derivative verification post-scan found unexpected derivative names"
             )
@@ -1149,12 +1397,24 @@ def audit_repository(root: Path) -> list[str]:
     if not root.is_dir():
         return ["repository root: directory does not exist"]
     errors: list[str] = []
-    roles = _load_manifest(root, errors)
+    sources: dict[str, Path] = {}
+    roles = _load_manifest(root, errors, sources)
+    manifest_valid = (
+        not errors
+        and len(roles) == len(EXPECTED_ROLE_SLUGS)
+        and len(sources) == len(EXPECTED_ROLE_SLUGS)
+    )
+    masters_valid = _check_masters(root, sources, errors)
     _check_derivatives(root, roles, errors)
     parsers = _check_html_scope(root, errors)
     _check_premium_html(root, parsers, roles, errors)
     _check_og_image(root, errors)
-    _check_builder(root, roles, errors)
+    _check_builder(
+        root,
+        roles,
+        errors,
+        ready=manifest_valid and masters_valid,
+    )
     _check_service_worker(root, errors)
     return errors
 
@@ -1167,11 +1427,40 @@ def _parser() -> argparse.ArgumentParser:
         default=ROOT,
         help="repository root (default: directory above this script)",
     )
+    parser.add_argument("--worker-root", type=Path, help=argparse.SUPPRESS)
+    parser.add_argument("--worker-staging", type=Path, help=argparse.SUPPRESS)
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    if args.worker_root is not None or args.worker_staging is not None:
+        if args.worker_root is None or args.worker_staging is None:
+            print(
+                json.dumps(
+                    {
+                        "ok": False,
+                        "error": "worker root and staging must be provided together",
+                    }
+                )
+            )
+            return 1
+        try:
+            files = _run_trusted_worker(
+                args.worker_root.resolve(), args.worker_staging.resolve()
+            )
+        except Exception as error:
+            print(
+                json.dumps(
+                    {
+                        "ok": False,
+                        "error": _error_detail(args.worker_root.resolve(), error),
+                    }
+                )
+            )
+            return 1
+        print(json.dumps({"ok": True, "files": files}, sort_keys=True))
+        return 0
     errors = audit_repository(args.root)
     if errors:
         for error in errors:
