@@ -14,6 +14,9 @@ desktop.ini
 # Brainstorm / visual companion scratch
 .superpowers/brainstorm/
 
+# Isolated feature worktrees
+.worktrees/
+
 # Build artifacts (pour le futur)
 node_modules/
 dist/
