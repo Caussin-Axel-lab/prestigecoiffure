@@ -14,11 +14,17 @@ import tempfile
 import warnings
 from collections import Counter
 from dataclasses import dataclass, field
-from html.parser import HTMLParser
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from urllib.parse import unquote, urlsplit
 
 from PIL import Image, UnidentifiedImageError
+
+try:
+    import html5lib
+    from html5lib import _tokenizer as html5_tokenizer
+except ModuleNotFoundError:
+    html5lib = None
+    html5_tokenizer = None
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -90,26 +96,7 @@ ACTIVE_HTML_FILES = (
     *(f"services/{slug}.html" for slug in LOCAL_SERVICE_SLUGS[4:]),
 )
 REMOTE_SCHEMES = {"http", "https", "data"}
-HTML_VOID_ELEMENTS = frozenset(
-    {
-        "area",
-        "base",
-        "br",
-        "col",
-        "embed",
-        "hr",
-        "img",
-        "input",
-        "link",
-        "meta",
-        "param",
-        "source",
-        "track",
-        "wbr",
-    }
-)
-INERT_HTML_ELEMENTS = frozenset({"template", "textarea", "script", "style", "noscript"})
-FOREIGN_CONTENT_ROOTS = frozenset({"math", "svg"})
+HTML_NAMESPACE = "http://www.w3.org/1999/xhtml"
 
 
 class LocalPathError(ValueError):
@@ -123,7 +110,6 @@ class Picture:
     images: list[dict[str, str]] = field(default_factory=list)
     parent_figure: Figure | None = None
     inert_ancestor: str | None = None
-    line: int = 0
 
 
 @dataclass
@@ -132,7 +118,6 @@ class Figure:
     images: list[dict[str, str]] = field(default_factory=list)
     pictures: list[Picture] = field(default_factory=list)
     inert_ancestor: str | None = None
-    line: int = 0
 
 
 @dataclass(frozen=True)
@@ -141,151 +126,62 @@ class SrcsetCandidate:
     descriptor: str
 
 
-class PhotoHTMLParser(HTMLParser):
-    """Collect URL references and the small amount of responsive structure used here."""
+@dataclass
+class ParsedHTML:
+    references: list[str] = field(default_factory=list)
+    pictures: list[Picture] = field(default_factory=list)
+    figures: list[Figure] = field(default_factory=list)
 
-    def __init__(self) -> None:
-        super().__init__(convert_charrefs=True)
-        self.references: list[str] = []
-        self.pictures: list[Picture] = []
-        self.figures: list[Figure] = []
-        self.diagnostics: list[str] = []
-        self._containers: list[tuple[str, Figure | Picture | None, int]] = []
 
-    @staticmethod
-    def _attributes(attributes: list[tuple[str, str | None]]) -> dict[str, str]:
-        return {name.lower(): value or "" for name, value in attributes}
+if html5lib is not None and html5_tokenizer is not None:
 
-    def _current(self, tag: str) -> Figure | Picture | None:
-        for container_tag, value, _line in reversed(self._containers):
-            if container_tag == tag:
-                return value
-        return None
+    class _DiagnosticTokenizer(html5_tokenizer.HTMLTokenizer):
+        """Attach the discarded duplicate attribute name to html5lib errors."""
 
-    def _inert_ancestor(self) -> str | None:
-        return next(
-            (
-                tag
-                for tag, _value, _line in reversed(self._containers)
-                if tag in INERT_HTML_ELEMENTS
-            ),
-            None,
-        )
-
-    def _inside_foreign_content(self) -> bool:
-        return any(
-            tag in FOREIGN_CONTENT_ROOTS
-            for tag, _value, _line in self._containers
-        )
-
-    def handle_starttag(
-        self, tag: str, attributes: list[tuple[str, str | None]]
-    ) -> bool:
-        tag = tag.lower()
-        lowered_names = [name.casefold() for name, _value in attributes]
-        duplicate_names = sorted(
-            {name for name in lowered_names if lowered_names.count(name) > 1}
-        )
-        if duplicate_names:
-            line, _offset = self.getpos()
-            for name in duplicate_names:
-                self.diagnostics.append(
-                    f"{line}: <{tag}> duplicate attribute {name!r}"
-                )
-            return False
-        attrs = self._attributes(attributes)
-        source = attrs.get("src")
-        if source:
-            self.references.append(source)
-        if attrs.get("srcset"):
-            self.references.extend(
-                candidate.url for candidate in parse_srcset_candidates(attrs["srcset"])
+        def attributeNameState(self):
+            token = self.currentToken
+            raw_attributes = token.get("data")
+            attribute_name = (
+                raw_attributes[-1][0].lower()
+                if isinstance(raw_attributes, list) and raw_attributes
+                else ""
             )
+            queue_size = len(self.tokenQueue)
+            result = super().attributeNameState()
+            for queued in list(self.tokenQueue)[queue_size:]:
+                if queued.get("data") == "duplicate-attribute":
+                    queued["datavars"] = {
+                        "name": attribute_name,
+                        "tag": token.get("name", "unknown"),
+                    }
+            return result
 
-        if tag == "figure":
-            line, _offset = self.getpos()
-            figure = Figure(
-                attributes=attrs,
-                inert_ancestor=self._inert_ancestor(),
-                line=line,
-            )
-            self.figures.append(figure)
-            self._containers.append((tag, figure, line))
-        elif tag == "picture":
-            line, _offset = self.getpos()
-            parent = self._current("figure")
-            if parent is not None and not isinstance(parent, Figure):
-                parent = None
-            picture = Picture(
-                parent_figure=parent,
-                inert_ancestor=self._inert_ancestor(),
-                line=line,
-            )
-            self.pictures.append(picture)
-            self._containers.append((tag, picture, line))
-            if parent is not None:
-                parent.pictures.append(picture)
-        elif tag in INERT_HTML_ELEMENTS:
-            line, _offset = self.getpos()
-            self._containers.append((tag, None, line))
-        elif tag in FOREIGN_CONTENT_ROOTS:
-            line, _offset = self.getpos()
-            self._containers.append((tag, None, line))
-        elif tag == "source":
-            picture = self._current("picture")
-            if isinstance(picture, Picture):
-                picture.sources.append(attrs)
-        elif tag == "img":
-            picture = self._current("picture")
-            if isinstance(picture, Picture):
-                picture.images.append(attrs)
-                if picture.image is None:
-                    picture.image = attrs
-            figure = self._current("figure")
-            if isinstance(figure, Figure):
-                figure.images.append(attrs)
-        return True
 
-    def handle_startendtag(
-        self, tag: str, attributes: list[tuple[str, str | None]]
-    ) -> None:
-        tag = tag.lower()
-        is_foreign = self._inside_foreign_content() or tag in FOREIGN_CONTENT_ROOTS
-        is_nonvoid = tag not in HTML_VOID_ELEMENTS and not is_foreign
-        if is_nonvoid:
-            line, _offset = self.getpos()
-            self.diagnostics.append(
-                f"{line}: <{tag}/> self-closing syntax is invalid for a non-void HTML element"
-            )
-        if self.handle_starttag(tag, attributes) and not is_nonvoid:
-            self.handle_endtag(tag)
+    class _DiagnosticHTMLParser(html5lib.HTMLParser):
+        """Use html5lib's parser with duplicate-aware diagnostics."""
 
-    def handle_endtag(self, tag: str) -> None:
-        tag = tag.lower()
-        if tag not in INERT_HTML_ELEMENTS | FOREIGN_CONTENT_ROOTS | {"figure", "picture"}:
-            return
-        matching = [
-            index
-            for index, (container_tag, _value, _line) in enumerate(self._containers)
-            if container_tag == tag
-        ]
-        if not matching:
-            line, _offset = self.getpos()
-            self.diagnostics.append(f"{line}: unexpected </{tag}>")
-            return
-        index = matching[-1]
-        if index != len(self._containers) - 1:
-            line, _offset = self.getpos()
-            open_tag = self._containers[-1][0]
-            self.diagnostics.append(
-                f"{line}: malformed nesting: </{tag}> closes before <{open_tag}>"
-            )
-        del self._containers[index:]
+        def _parse(
+            self,
+            stream,
+            innerHTML=False,
+            container="div",
+            scripting=False,
+            **kwargs,
+        ):
+            self.innerHTMLMode = innerHTML
+            self.container = container
+            self.scripting = scripting
+            self.tokenizer = _DiagnosticTokenizer(stream, parser=self, **kwargs)
+            self.reset()
+            try:
+                self.mainLoop()
+            except html5_tokenizer._ReparseException:
+                self.reset()
+                self.mainLoop()
 
-    def finalize(self) -> None:
-        for tag, _value, line in self._containers:
-            self.diagnostics.append(f"{line}: unclosed <{tag}>")
-        self._containers.clear()
+
+else:
+    _DiagnosticHTMLParser = None
 
 
 def parse_srcset_candidates(value: str) -> list[SrcsetCandidate]:
@@ -385,7 +281,25 @@ def _walk_case_sensitive(root: Path, start: Path, components: list[str]) -> Path
 
 
 def _repository_path(root: Path, relative_path: str) -> Path:
-    return _walk_case_sensitive(root, root, relative_path.split("/"))
+    try:
+        parsed = urlsplit(relative_path)
+    except ValueError as error:
+        raise LocalPathError("must be a normalized relative POSIX path") from error
+    raw_components = relative_path.split("/")
+    posix_path = PurePosixPath(relative_path)
+    if (
+        not relative_path
+        or "\\" in relative_path
+        or parsed.scheme
+        or parsed.netloc
+        or parsed.query
+        or parsed.fragment
+        or posix_path.is_absolute()
+        or any(component in {"", ".", ".."} for component in raw_components)
+        or posix_path.as_posix() != relative_path
+    ):
+        raise LocalPathError("must be a normalized relative POSIX path")
+    return _walk_case_sensitive(root, root, list(posix_path.parts))
 
 
 def _local_path(root: Path, document: Path, reference: str) -> Path | None:
@@ -410,7 +324,83 @@ def _local_path(root: Path, document: Path, reference: str) -> Path | None:
     return _walk_case_sensitive(root, start, components)
 
 
-def _parse_html(root: Path, relative_path: str, errors: list[str]) -> PhotoHTMLParser | None:
+def _html_element_name(element) -> str | None:
+    tag = getattr(element, "tag", None)
+    if not isinstance(tag, str):
+        return None
+    if not tag.startswith("{"):
+        return tag.lower()
+    namespace, local_name = tag[1:].split("}", 1)
+    return local_name if namespace == HTML_NAMESPACE else None
+
+
+def _collect_html_dom(document) -> ParsedHTML:
+    parsed = ParsedHTML()
+
+    def visit(
+        element,
+        *,
+        inside_template: bool,
+        parent_figure: Figure | None,
+        parent_picture: Picture | None,
+    ) -> None:
+        name = _html_element_name(element)
+        attributes = dict(getattr(element, "attrib", {}))
+        if not inside_template:
+            source = attributes.get("src")
+            if source:
+                parsed.references.append(source)
+            srcset = attributes.get("srcset")
+            if srcset:
+                parsed.references.extend(
+                    candidate.url for candidate in parse_srcset_candidates(srcset)
+                )
+
+        current_figure = parent_figure
+        current_picture = parent_picture
+        if name == "figure":
+            current_figure = Figure(
+                attributes=attributes,
+                inert_ancestor="template" if inside_template else None,
+            )
+            parsed.figures.append(current_figure)
+        elif name == "picture":
+            current_picture = Picture(
+                parent_figure=current_figure,
+                inert_ancestor="template" if inside_template else None,
+            )
+            parsed.pictures.append(current_picture)
+            if current_figure is not None:
+                current_figure.pictures.append(current_picture)
+        elif name == "source" and current_picture is not None:
+            current_picture.sources.append(attributes)
+        elif name == "img":
+            if current_picture is not None:
+                current_picture.images.append(attributes)
+                if current_picture.image is None:
+                    current_picture.image = attributes
+            if current_figure is not None:
+                current_figure.images.append(attributes)
+
+        child_inside_template = inside_template or name == "template"
+        for child in element:
+            visit(
+                child,
+                inside_template=child_inside_template,
+                parent_figure=current_figure,
+                parent_picture=current_picture,
+            )
+
+    visit(
+        document,
+        inside_template=False,
+        parent_figure=None,
+        parent_picture=None,
+    )
+    return parsed
+
+
+def _parse_html(root: Path, relative_path: str, errors: list[str]) -> ParsedHTML | None:
     try:
         path = _repository_path(root, relative_path)
     except LocalPathError as error:
@@ -424,21 +414,32 @@ def _parse_html(root: Path, relative_path: str, errors: list[str]) -> PhotoHTMLP
     except (OSError, UnicodeError) as error:
         errors.append(f"{relative_path}: cannot read HTML: {_error_detail(root, error)}")
         return None
-    parser = PhotoHTMLParser()
     try:
-        parser.feed(contents)
-        parser.close()
-        parser.finalize()
-    except (ValueError, AssertionError) as error:
+        parser = _DiagnosticHTMLParser(
+            tree=html5lib.getTreeBuilder("etree"),
+            namespaceHTMLElements=True,
+        )
+        document = parser.parse(contents, scripting=True)
+    except (AssertionError, AttributeError, TypeError, ValueError) as error:
         errors.append(f"{relative_path}: invalid HTML: {error}")
         return None
-    for diagnostic in parser.diagnostics:
-        errors.append(f"{relative_path}:{diagnostic}")
-    return parser
+    for (line, _column), code, details in parser.errors:
+        if code == "duplicate-attribute":
+            errors.append(
+                f"{relative_path}:{line}: <{details.get('tag', 'unknown')}> "
+                f"duplicate attribute {details.get('name', 'unknown')!r}"
+            )
+        elif code == "non-void-element-with-trailing-solidus":
+            tag = details.get("name", "unknown")
+            errors.append(
+                f"{relative_path}:{line}: <{tag}/> self-closing syntax is invalid "
+                "for a non-void HTML element"
+            )
+    return _collect_html_dom(document)
 
 
-def _check_html_scope(root: Path, errors: list[str]) -> dict[str, PhotoHTMLParser]:
-    parsers: dict[str, PhotoHTMLParser] = {}
+def _check_html_scope(root: Path, errors: list[str]) -> dict[str, ParsedHTML]:
+    parsers: dict[str, ParsedHTML] = {}
     try:
         services_directory = _repository_path(root, "services")
     except LocalPathError as error:
@@ -903,7 +904,7 @@ def _check_source_candidate(
 def _check_picture(
     root: Path,
     relative_path: str,
-    parser: PhotoHTMLParser,
+    parser: ParsedHTML,
     slug: str,
     dimensions: tuple[int, int],
     errors: list[str],
@@ -913,22 +914,24 @@ def _check_picture(
     mobile_jpeg_type: str | None,
 ) -> Picture | None:
     expected_paths = _expected_role_paths(slug)
-    candidates = [
+    matching = [
         picture
         for picture in parser.pictures
         if set(_picture_paths(root, relative_path, picture)) & set(expected_paths)
     ]
+    for picture in matching:
+        if picture.inert_ancestor:
+            errors.append(
+                f"{relative_path}: premium picture must not be inside "
+                f"<{picture.inert_ancestor}>"
+            )
+    candidates = [picture for picture in matching if not picture.inert_ancestor]
     if len(candidates) != 1:
         errors.append(
             f"{relative_path}: {slug} must have exactly one premium picture"
         )
         return None
     picture = candidates[0]
-    if picture.inert_ancestor:
-        errors.append(
-            f"{relative_path}: premium picture must not be inside "
-            f"<{picture.inert_ancestor}>"
-        )
     actual_paths = _picture_paths(root, relative_path, picture)
     if actual_paths != expected_paths:
         errors.append(
@@ -1016,15 +1019,19 @@ def _check_picture(
 
 def _check_premium_html(
     root: Path,
-    parsers: dict[str, PhotoHTMLParser],
+    parsers: dict[str, ParsedHTML],
     roles: dict[str, dict[str, tuple[int, int]]],
     errors: list[str],
 ) -> None:
     index = parsers.get("index.html")
     if index is not None:
-        if len(index.pictures) != 5:
+        active_pictures = [
+            picture for picture in index.pictures if not picture.inert_ancestor
+        ]
+        if len(active_pictures) != 5:
             errors.append(
-                f"index.html: expected exactly 5 picture elements, got {len(index.pictures)}"
+                "index.html: expected exactly 5 picture elements, got "
+                f"{len(active_pictures)}"
             )
         references = _normalized_references(root, "index.html", index.references)
         premium = [path for path in references if path.startswith("photosalon/web/")]
@@ -1065,10 +1072,19 @@ def _check_premium_html(
             errors.append(
                 f"{relative_path}: premium photo references must be exactly the four expected responsive paths"
             )
-        hero_figures = [
+        matching_hero_figures = [
             figure
             for figure in parser.figures
             if "service-hero-image" in figure.attributes.get("class", "").split()
+        ]
+        for figure in matching_hero_figures:
+            if figure.inert_ancestor:
+                errors.append(
+                    f"{relative_path}: service hero figure must not be inside "
+                    f"<{figure.inert_ancestor}>"
+                )
+        hero_figures = [
+            figure for figure in matching_hero_figures if not figure.inert_ancestor
         ]
         if len(hero_figures) != 1:
             errors.append(
@@ -1080,11 +1096,6 @@ def _check_premium_html(
         ).split():
             errors.append(
                 f"{relative_path}: service hero figure must be cinematic"
-            )
-        if hero is not None and hero.inert_ancestor:
-            errors.append(
-                f"{relative_path}: service hero figure must not be inside "
-                f"<{hero.inert_ancestor}>"
             )
         picture = _check_picture(
             root,
@@ -1111,10 +1122,19 @@ def _check_premium_html(
     child = parsers.get(child_path)
     if child is not None:
         references = _normalized_references(root, child_path, child.references)
-        hero_figures = [
+        matching_hero_figures = [
             figure
             for figure in child.figures
             if "service-hero-image" in figure.attributes.get("class", "").split()
+        ]
+        for figure in matching_hero_figures:
+            if figure.inert_ancestor:
+                errors.append(
+                    f"{child_path}: service hero figure must not be inside "
+                    f"<{figure.inert_ancestor}>"
+                )
+        hero_figures = [
+            figure for figure in matching_hero_figures if not figure.inert_ancestor
         ]
         if len(hero_figures) != 1:
             errors.append(
@@ -1122,11 +1142,6 @@ def _check_premium_html(
             )
             return
         hero = hero_figures[0]
-        if hero.inert_ancestor:
-            errors.append(
-                f"{child_path}: service hero figure must not be inside "
-                f"<{hero.inert_ancestor}>"
-            )
         classes = set(hero.attributes.get("class", "").split())
         if "service-hero-image--temporary" not in classes:
             errors.append(
@@ -1396,6 +1411,10 @@ def audit_repository(root: Path) -> list[str]:
     root = Path(root).resolve()
     if not root.is_dir():
         return ["repository root: directory does not exist"]
+    if html5lib is None or _DiagnosticHTMLParser is None:
+        return [
+            "HTML5 parser: html5lib==1.1 is required; install requirements-photo.txt"
+        ]
     errors: list[str] = []
     sources: dict[str, Path] = {}
     roles = _load_manifest(root, errors, sources)

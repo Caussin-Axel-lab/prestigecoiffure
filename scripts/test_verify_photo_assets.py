@@ -736,6 +736,52 @@ class PhotoAssetVerifierTests(unittest.TestCase):
         self.assertIn("scripts/photo-manifest.json: hero-salon.input", errors)
         self.assertIn("case mismatch", errors)
 
+    def test_manifest_input_path_rejects_windows_separators(self):
+        manifest_path = self.root / "scripts" / "photo-manifest.json"
+        original = json.loads(manifest_path.read_text(encoding="utf-8"))
+        for input_path in (
+            r"photosalon\Retouched\HERO-SALON.PNG",
+            r"photosalon\retouched\hero-salon.png",
+        ):
+            with self.subTest(input_path=input_path):
+                manifest = json.loads(json.dumps(original))
+                manifest["hero-salon"]["input"] = input_path
+                manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+                errors: list[str] = []
+
+                verifier._load_manifest(self.root, errors)
+
+                self.assertIn("normalized relative POSIX path", "\n".join(errors))
+
+    def test_manifest_input_path_must_be_normalized_relative_posix(self):
+        manifest_path = self.root / "scripts" / "photo-manifest.json"
+        original = json.loads(manifest_path.read_text(encoding="utf-8"))
+        for input_path in (
+            "./photosalon/retouched/hero-salon.png",
+            "photosalon/retouched/../retouched/hero-salon.png",
+            "/photosalon/retouched/hero-salon.png",
+            "https://example.test/hero-salon.png",
+            "photosalon/retouched/hero-salon.png?download=1",
+            "photosalon/retouched/hero-salon.png#fragment",
+        ):
+            with self.subTest(input_path=input_path):
+                manifest = json.loads(json.dumps(original))
+                manifest["hero-salon"]["input"] = input_path
+                manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+                errors: list[str] = []
+
+                verifier._load_manifest(self.root, errors)
+
+                self.assertIn("normalized relative POSIX path", "\n".join(errors))
+
+    def test_manifest_input_path_accepts_normalized_posix_path(self):
+        errors: list[str] = []
+
+        roles = verifier._load_manifest(self.root, errors)
+
+        self.assertEqual(errors, [])
+        self.assertIn("hero-salon", roles)
+
     def test_nonvoid_self_closing_template_is_rejected_and_kept_inert(self):
         service = self.root / "services" / "balayage.html"
         service.write_text(
@@ -763,6 +809,46 @@ class PhotoAssetVerifierTests(unittest.TestCase):
 
         self.assertNotIn("self-closing syntax is invalid", errors)
 
+    def test_svg_foreign_object_template_self_close_keeps_hero_in_template(self):
+        service = self.root / "services" / "balayage.html"
+        service.write_text(
+            "<svg><foreignObject><template/>"
+            + service.read_text(encoding="utf-8")
+            + "</foreignObject></svg>",
+            encoding="utf-8",
+        )
+
+        errors = "\n".join(self.errors())
+
+        self.assertIn("premium picture must not be inside <template>", errors)
+        self.assertIn("service hero figure must not be inside <template>", errors)
+
+    def test_mathml_html_integration_template_self_close_keeps_hero_in_template(self):
+        service = self.root / "services" / "balayage.html"
+        service.write_text(
+            '<math><annotation-xml encoding="text/html"><template/>'
+            + service.read_text(encoding="utf-8")
+            + "</annotation-xml></math>",
+            encoding="utf-8",
+        )
+
+        errors = "\n".join(self.errors())
+
+        self.assertIn("premium picture must not be inside <template>", errors)
+        self.assertIn("service hero figure must not be inside <template>", errors)
+
+    def test_premium_markup_inside_title_is_text_not_dom(self):
+        service = self.root / "services" / "balayage.html"
+        service.write_text(
+            "<title>" + service.read_text(encoding="utf-8") + "</title>",
+            encoding="utf-8",
+        )
+
+        errors = "\n".join(self.errors())
+
+        self.assertIn("expected exactly one service hero figure, got 0", errors)
+        self.assertIn("service-balayage must have exactly one premium picture", errors)
+
     def test_premium_markup_inside_textarea_is_rejected_as_inert(self):
         service = self.root / "services" / "balayage.html"
         service.write_text(
@@ -772,14 +858,33 @@ class PhotoAssetVerifierTests(unittest.TestCase):
 
         errors = "\n".join(self.errors())
 
-        self.assertIn(
-            "services/balayage.html: service hero figure must not be inside <textarea>",
-            errors,
+        self.assertIn("expected exactly one service hero figure, got 0", errors)
+        self.assertIn("service-balayage must have exactly one premium picture", errors)
+
+    def test_requirements_pin_html5lib(self):
+        requirements = (SCRIPT.parent.parent / "requirements-photo.txt").read_text(
+            encoding="utf-8"
         )
-        self.assertIn(
-            "services/balayage.html: premium picture must not be inside <textarea>",
-            errors,
+
+        self.assertEqual(
+            requirements.splitlines(),
+            ["Pillow==12.2.0", "html5lib==1.1"],
         )
+
+    def test_cli_reports_missing_html5lib_without_traceback(self):
+        stderr = io.StringIO()
+        stdout = io.StringIO()
+        with (
+            mock.patch.object(verifier, "html5lib", None, create=True),
+            redirect_stdout(stdout),
+            redirect_stderr(stderr),
+        ):
+            exit_code = verifier.main(["--root", str(self.root)])
+
+        self.assertEqual(exit_code, 1)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertIn("html5lib==1.1 is required", stderr.getvalue())
+        self.assertNotIn("Traceback", stderr.getvalue())
 
     def test_local_url_backslashes_are_rejected_before_resolution(self):
         retired = self.root / "services" / "lissage-ybera.html"
