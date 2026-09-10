@@ -1,0 +1,16 @@
+{
+  "hero-salon": {"input":"photosalon/retouched/hero-salon.png","variants":{"desktop":{"width":960,"height":1200,"focalX":0.48,"focalY":0.52},"mobile":{"width":1200,"height":750,"focalX":0.48,"focalY":0.48}}},
+  "salon-lounge": {"input":"photosalon/retouched/salon-lounge.png","variants":{"desktop":{"width":800,"height":1200,"focalX":0.50,"focalY":0.48},"mobile":{"width":720,"height":960,"focalX":0.50,"focalY":0.50}}},
+  "salon-barbier": {"input":"photosalon/retouched/salon-barbier.png","variants":{"desktop":{"width":800,"height":800,"focalX":0.52,"focalY":0.50},"mobile":{"width":720,"height":720,"focalX":0.52,"focalY":0.50}}},
+  "salon-headspa": {"input":"photosalon/retouched/salon-headspa.png","variants":{"desktop":{"width":800,"height":800,"focalX":0.50,"focalY":0.50},"mobile":{"width":720,"height":720,"focalX":0.50,"focalY":0.50}}},
+  "cabine-headspa": {"input":"photosalon/retouched/cabine-headspa.png","variants":{"desktop":{"width":1440,"height":960,"focalX":0.52,"focalY":0.50},"mobile":{"width":900,"height":1125,"focalX":0.58,"focalY":0.50}}},
+  "service-balayage": {"input":"photosalon/retouched/service-balayage.png","variants":{"desktop":{"width":1920,"height":1080,"focalX":0.58,"focalY":0.46},"mobile":{"width":1080,"height":1350,"focalX":0.60,"focalY":0.44}}},
+  "service-barberie": {"input":"photosalon/retouched/service-barberie.png","variants":{"desktop":{"width":1920,"height":1080,"focalX":0.52,"focalY":0.44},"mobile":{"width":1080,"height":1350,"focalX":0.52,"focalY":0.42}}},
+  "service-coiffure-mariee": {"input":"photosalon/retouched/service-coiffure-mariee.png","variants":{"desktop":{"width":1920,"height":1080,"focalX":0.52,"focalY":0.43},"mobile":{"width":1080,"height":1350,"focalX":0.52,"focalY":0.40}}},
+  "service-coloration": {"input":"photosalon/retouched/service-coloration.png","variants":{"desktop":{"width":1920,"height":1080,"focalX":0.50,"focalY":0.44},"mobile":{"width":1080,"height":1350,"focalX":0.50,"focalY":0.42}}},
+  "service-coupes-femme": {"input":"photosalon/retouched/service-coupes-femme.png","variants":{"desktop":{"width":1920,"height":1080,"focalX":0.50,"focalY":0.42},"mobile":{"width":1080,"height":1350,"focalX":0.50,"focalY":0.40}}},
+  "service-coupes-homme": {"input":"photosalon/retouched/service-coupes-homme.png","variants":{"desktop":{"width":1920,"height":1080,"focalX":0.50,"focalY":0.42},"mobile":{"width":1080,"height":1350,"focalX":0.50,"focalY":0.40}}},
+  "service-extensions-great-lengths": {"input":"photosalon/retouched/service-extensions-great-lengths.png","variants":{"desktop":{"width":1920,"height":1080,"focalX":0.52,"focalY":0.45},"mobile":{"width":1080,"height":1350,"focalX":0.52,"focalY":0.42}}},
+  "service-head-spa": {"input":"photosalon/retouched/service-head-spa.png","variants":{"desktop":{"width":1920,"height":1080,"focalX":0.55,"focalY":0.50},"mobile":{"width":1080,"height":1350,"focalX":0.58,"focalY":0.50}}},
+  "service-patine-gloss": {"input":"photosalon/retouched/service-patine-gloss.png","variants":{"desktop":{"width":1920,"height":1080,"focalX":0.50,"focalY":0.44},"mobile":{"width":1080,"height":1350,"focalX":0.50,"focalY":0.42}}}
+}
