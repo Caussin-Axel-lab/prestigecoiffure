@@ -37,6 +37,16 @@ class RetouchTarget(NamedTuple):
     profile: str
 
 
+class RetouchProfile(NamedTuple):
+    median_blend: float
+    color: float
+    contrast: float
+    brightness: float
+    unsharp_radius: float
+    unsharp_percent: int
+    unsharp_threshold: int
+
+
 class ValidationResult(NamedTuple):
     slug: str
     source: Path
@@ -48,16 +58,38 @@ class ValidationResult(NamedTuple):
     edge_energy_ratio: float
 
 
-def _target(slug: str) -> RetouchTarget:
+PROFILES = {
+    "salon": RetouchProfile(
+        median_blend=0.18,
+        color=0.98,
+        contrast=1.025,
+        brightness=1.005,
+        unsharp_radius=1.15,
+        unsharp_percent=45,
+        unsharp_threshold=5,
+    ),
+    "service": RetouchProfile(
+        median_blend=0.10,
+        color=0.96,
+        contrast=1.06,
+        brightness=0.99,
+        unsharp_radius=1.10,
+        unsharp_percent=50,
+        unsharp_threshold=5,
+    ),
+}
+
+
+def _target(slug: str, profile: str) -> RetouchTarget:
     return RetouchTarget(
         source=ROOT / "photosalon" / f"{slug}.jpg",
         output=ROOT / "photosalon" / "retouched" / f"{slug}.png",
-        profile="salon",
+        profile=profile,
     )
 
 
 RETOUCHES = {
-    slug: _target(slug)
+    slug: _target(slug, "salon")
     for slug in (
         "hero-salon",
         "salon-lounge",
@@ -66,30 +98,58 @@ RETOUCHES = {
         "cabine-headspa",
     )
 }
+RETOUCHES.update(
+    {
+        slug: _target(slug, "service")
+        for slug in (
+            "service-balayage",
+            "service-barberie",
+            "service-coiffure-mariee",
+            "service-coloration",
+            "service-coupes-femme",
+            "service-coupes-homme",
+            "service-extensions-great-lengths",
+            "service-head-spa",
+            "service-patine-gloss",
+        )
+    }
+)
 
 
-def prepare_graded_source(source: Image.Image) -> Image.Image:
+def prepare_graded_source(
+    source: Image.Image, profile_name: str = "salon"
+) -> Image.Image:
     """Orient, gently smooth, and naturally grade a salon photograph."""
+    profile = PROFILES[profile_name]
     original = ImageOps.exif_transpose(source).convert("RGB")
     median = original.filter(ImageFilter.MedianFilter(size=3))
-    graded = Image.blend(original, median, 0.18)
-    graded = ImageEnhance.Color(graded).enhance(0.98)
-    graded = ImageEnhance.Contrast(graded).enhance(1.025)
-    return ImageEnhance.Brightness(graded).enhance(1.005)
+    graded = Image.blend(original, median, profile.median_blend)
+    graded = ImageEnhance.Color(graded).enhance(profile.color)
+    graded = ImageEnhance.Contrast(graded).enhance(profile.contrast)
+    return ImageEnhance.Brightness(graded).enhance(profile.brightness)
 
 
-def render_master(source: Image.Image) -> Image.Image:
+def render_master(source: Image.Image, profile_name: str = "salon") -> Image.Image:
     """Create the exact 2x salon master from an open source image."""
-    graded = prepare_graded_source(source)
-    return render_graded_master(graded)
+    graded = prepare_graded_source(source, profile_name)
+    return render_graded_master(graded, profile_name)
 
 
-def render_graded_master(graded: Image.Image) -> Image.Image:
+def render_graded_master(
+    graded: Image.Image, profile_name: str = "salon"
+) -> Image.Image:
+    profile = PROFILES[profile_name]
     master = graded.resize(
         (graded.width * 2, graded.height * 2),
         Image.Resampling.LANCZOS,
     )
-    return master.filter(ImageFilter.UnsharpMask(radius=1.15, percent=45, threshold=5))
+    return master.filter(
+        ImageFilter.UnsharpMask(
+            radius=profile.unsharp_radius,
+            percent=profile.unsharp_percent,
+            threshold=profile.unsharp_threshold,
+        )
+    )
 
 
 def sha256_file(path: Path) -> str:
@@ -206,8 +266,8 @@ def process_target(
     source_sha256: str,
 ) -> ValidationResult:
     with Image.open(target.source) as source:
-        graded = prepare_graded_source(source)
-    rendered = render_graded_master(graded)
+        graded = prepare_graded_source(source, target.profile)
+    rendered = render_graded_master(graded, target.profile)
     rendered.info.clear()
     rendered.save(staged_path, format="PNG", optimize=True)
     report = validate_staged_output(
@@ -424,7 +484,7 @@ def main(argv: list[str] | None = None) -> int:
         "slugs",
         nargs="*",
         metavar="SLUG",
-        help="optional salon photo slug; omit to build all five",
+        help="optional salon or service photo slug; omit to build all fourteen",
     )
     parser.add_argument(
         "--verify-committed",

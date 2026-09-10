@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from PIL import Image, ImageChops, ImageOps
+from PIL import Image, ImageChops, ImageEnhance, ImageFilter, ImageOps
 
 
 SCRIPT_PATH = Path(__file__).with_name("prepare-retouched-masters.py")
@@ -69,6 +69,25 @@ def make_fixture(path, seed):
     image.save(path, format="JPEG", quality=92, exif=exif)
 
 
+def render_expected_master(source, profile):
+    graded = ImageOps.exif_transpose(source).convert("RGB")
+    median = graded.filter(ImageFilter.MedianFilter(size=3))
+    graded = Image.blend(graded, median, profile.median_blend)
+    graded = ImageEnhance.Color(graded).enhance(profile.color)
+    graded = ImageEnhance.Contrast(graded).enhance(profile.contrast)
+    graded = ImageEnhance.Brightness(graded).enhance(profile.brightness)
+    master = graded.resize(
+        (graded.width * 2, graded.height * 2), Image.Resampling.LANCZOS
+    )
+    return master.filter(
+        ImageFilter.UnsharpMask(
+            radius=profile.unsharp_radius,
+            percent=profile.unsharp_percent,
+            threshold=profile.unsharp_threshold,
+        )
+    )
+
+
 def write_hash_manifest(path, targets, output_hashes=None):
     payload = {
         "sources": {slug: sha256(target.source) for slug, target in targets.items()},
@@ -78,6 +97,102 @@ def write_hash_manifest(path, targets, output_hashes=None):
 
 
 class PrepareRetouchedMastersTests(unittest.TestCase):
+    def test_service_profile_constants_and_targets_are_locked(self):
+        module = load_module()
+        self.assertEqual(
+            module.PROFILES["service"],
+            module.RetouchProfile(
+                median_blend=0.10,
+                color=0.96,
+                contrast=1.06,
+                brightness=0.99,
+                unsharp_radius=1.10,
+                unsharp_percent=50,
+                unsharp_threshold=5,
+            ),
+        )
+        service_slugs = (
+            "service-balayage",
+            "service-barberie",
+            "service-coiffure-mariee",
+            "service-coloration",
+            "service-coupes-femme",
+            "service-coupes-homme",
+            "service-extensions-great-lengths",
+            "service-head-spa",
+            "service-patine-gloss",
+        )
+        for slug in service_slugs:
+            target = module.RETOUCHES[slug]
+            self.assertEqual(target.profile, "service")
+            self.assertEqual(target.source, module.ROOT / "photosalon" / f"{slug}.jpg")
+            self.assertEqual(
+                target.output,
+                module.ROOT / "photosalon" / "retouched" / f"{slug}.png",
+            )
+
+    def test_process_target_applies_service_profile_to_generated_fixture(self):
+        module = load_module()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "service-fixture.jpg"
+            staged = root / "service-fixture.candidate.png"
+            make_fixture(source, seed=3)
+            before = sha256(source)
+            target = module.RetouchTarget(source, root / "service-fixture.png", "service")
+
+            report = module.process_target("service-fixture", target, staged, before)
+
+            with Image.open(source) as original:
+                expected = render_expected_master(
+                    original, module.PROFILES["service"]
+                )
+            with Image.open(staged) as output:
+                output.load()
+                self.assertIsNone(ImageChops.difference(output, expected).getbbox())
+            self.assertEqual(sha256(source), before)
+            self.assertLessEqual(report.normalized_mean_absolute_error, 4.0)
+            self.assertGreaterEqual(report.edge_energy_ratio, 0.85)
+            self.assertLessEqual(report.edge_energy_ratio, 1.25)
+
+    def test_build_supports_mixed_salon_and_service_profiles(self):
+        module = load_module()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            photos = root / "photosalon"
+            outputs = photos / "retouched"
+            outputs.mkdir(parents=True)
+            targets = {}
+            for index, (slug, profile) in enumerate(
+                (("salon-fixture", "salon"), ("service-fixture", "service")),
+                start=1,
+            ):
+                source = photos / f"{slug}.jpg"
+                make_fixture(source, seed=index)
+                targets[slug] = module.RetouchTarget(
+                    source, outputs / f"{slug}.png", profile
+                )
+            manifest = root / "photo-master-hashes.json"
+            write_hash_manifest(manifest, targets)
+
+            with (
+                mock.patch.object(module, "RETOUCHES", targets),
+                mock.patch.object(module, "HASHES_FILE", manifest),
+            ):
+                reports = module.build(["salon-fixture", "service-fixture"])
+
+            self.assertEqual([report.slug for report in reports], list(targets))
+            for slug, target in targets.items():
+                with Image.open(target.source) as source:
+                    expected = render_expected_master(
+                        source, module.PROFILES[target.profile]
+                    )
+                with Image.open(target.output) as output:
+                    output.load()
+                    self.assertIsNone(
+                        ImageChops.difference(output, expected).getbbox()
+                    )
+
     def test_python_311_or_newer_is_required(self):
         module = load_module()
         self.assertTrue(
