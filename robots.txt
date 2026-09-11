@@ -1,4 +1,5 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://www.prestige-chalon.fr/sitemap.xml
+Sitemap: https://www.prestigecoiffurechalon.fr/sitemap.xml
+

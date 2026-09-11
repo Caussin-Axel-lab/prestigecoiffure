@@ -1754,7 +1754,7 @@
   /* Pied de page d'impression : indiquer la source */
   .article-body::after,
   .legal-content::after {
-    content: "— Imprimé depuis prestige-chalon.fr";
+    content: "— Imprimé depuis prestigecoiffurechalon.fr";
     display: block;
     margin-top: 24pt;
     font-size: 9pt;
@@ -1763,3 +1763,4 @@
     padding-top: 8pt;
   }
 }
+

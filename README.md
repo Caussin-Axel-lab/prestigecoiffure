@@ -134,7 +134,7 @@ Chaque page `services/<slug>.html` contient un bloc de métriques (`.service-met
 
 Le fichier `_headers` à la racine est automatiquement lu par Netlify et applique les en-têtes HTTP de sécurité (CSP, HSTS, X-Frame-Options…).
 
-Pour un domaine custom (`prestige-chalon.fr`), configurer le DNS dans Netlify → Settings → Domain management.
+Pour un domaine custom (`prestigecoiffurechalon.fr`), configurer le DNS dans Netlify → Settings → Domain management.
 
 ---
 
@@ -154,3 +154,4 @@ Pour un domaine custom (`prestige-chalon.fr`), configurer le DNS dans Netlify �
 - **`data-track`** : tous les CTAs cliquables portent un attribut `data-track="<identifiant>"` pour faciliter le suivi analytics (ex. `data-track="cta-book-hero"`)
 - **Dark mode** : les surcharges dark se font via `:root[data-theme="dark"] .ma-classe` dans `style.css`, jamais via media query `prefers-color-scheme` (le JS gère la persistance)
 - **Images** : toujours un `alt` descriptif ; les images décoratives portent `alt=""`
+
