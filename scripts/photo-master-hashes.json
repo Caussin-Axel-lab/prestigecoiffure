@@ -1,10 +1,10 @@
 {
   "sources": {
-    "hero-salon": "c2a7cac76fa04fad00da67c26b98a9ed365f10f57bd3fec233b7cedc7abb9e3e",
-    "salon-lounge": "96c9fc9d637b38a596835811e6ef0949fd3c383804b77daca71bd858cc3a63cc",
-    "salon-barbier": "f5fb21e0ef6e55600c2be606a3b12b2f6c7e68924cb0e671076e8cee5049706f",
-    "salon-headspa": "f30caf28c5cb6f709ea1294506184460e2b44bca2e75e100eeafd429287f00cb",
-    "cabine-headspa": "45a41dff246e93d38abf49f54cb2997072ff90b340bf2bb588c736fadd1b0f2a",
+    "hero-salon": "9edaa8da6e499bddb25f1df5d63ae29dca27c74b8bb49b15ff0f37a39ba4ae60",
+    "salon-lounge": "279f0cdd4af6d1910ba33c3ad3a7130781928e5139abf6d2f109efef428ab48b",
+    "salon-barbier": "fb4666096901c1a0799b76819428effb7563e63e9dc1ae836fb7b35a8bc2416d",
+    "salon-headspa": "693b7da4c5414bea2524055d996ecb91da7d4db2f215021b80425fbb8c4d999d",
+    "cabine-headspa": "c428dbc9087e30052baf40e1f54bbf366cc67c7f4b5be6958e2e20233a4b3f67",
     "service-balayage": "c6c2ac34f054c2d198c02f13517571a032b3018cad31f2e42499baac1111405e",
     "service-barberie": "a87530f2533c4cb5cff6297ad0d1c2fa48b4bef6c4d58b96205595d9f0d32e8b",
     "service-coiffure-mariee": "203e5473ff4d510d42de91bea655aad1e121d6eb9875edd6746c5b4a7c08a70b",
@@ -16,11 +16,11 @@
     "service-patine-gloss": "29a12f49f55a0e253289273655b6821077e075492747b07ba6415b968198059a"
   },
   "outputs": {
-    "hero-salon": "67413f8ef5d74fef3578e15c98c15a1d42c4795cfba15ab420b25ad39879d7c8",
-    "salon-lounge": "96972a8091cfd73a2a8e3f1694b96394247b4f8484220680c5e21b64a2aec662",
-    "salon-barbier": "4b4772ba08c4b80d5e71a8480570e64c490cb00efac2cc5eb3086c8da179a025",
-    "salon-headspa": "9f3d9552b9f049270d9af637403baa84680d7cf45ea7d93c527908e69786d757",
-    "cabine-headspa": "98e9137171ef70d316f8b80df789aa16c88a5fbd55f526d1734abbc25ec5bf29",
+    "hero-salon": "2a7d986c16a1023396002c97f0d96534d1cc0690d8a80042185157f5922bc060",
+    "salon-lounge": "2e325fbb0ec1c8e3e9e87d3a3ec0d1596d346ac5b7bf58756c5d35476b9265e5",
+    "salon-barbier": "90d535e4a35e7b6c89a25fe06ca5d4255b22572b53f800859ca02c07b6dc762f",
+    "salon-headspa": "34672aaa2f5eb06f9bce178eb81135bdbef1459a470f19e03df71a782552f221",
+    "cabine-headspa": "5b502cc044a46604ae8a5f0d173a5c174e6aeaf6a13a19b5699b3499c275a111",
     "service-balayage": "0e6ec88e75bae4e6afd7990296490b53b8de233183ddf5a2997f141c99612801",
     "service-barberie": "daad3b84ede60a0b230636f0a941eccba9ffc8923587b6cba074da1c83336b47",
     "service-coiffure-mariee": "3f36ac957fb3d5fdc7e8fa4b48d8e7063dad3b9288fa97b20d1b58692bde85c5",
