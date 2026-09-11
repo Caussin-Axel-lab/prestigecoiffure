@@ -32,6 +32,7 @@ TARGETS: dict[str, tuple[int, int, float, float]] = {
     "salon-barbier": (1600, 1600, 0.52, 0.50),
     "salon-headspa": (1600, 1600, 0.50, 0.50),
     "cabine-headspa": (2800, 1866, 0.52, 0.50),
+    "service-head-spa": (3600, 2024, 0.52, 0.50),
 }
 
 
