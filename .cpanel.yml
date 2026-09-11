@@ -2,4 +2,4 @@
 deployment:
   tasks:
     - export DEPLOYPATH=/home/ciha0688/public_html/
-    - /usr/bin/rsync -av ./ $DEPLOYPATH
+    - /usr/bin/rsync -av --exclude='.git/' --exclude='.github/' --exclude='.cpanel.yml' --exclude='photosalon/retouched/' --exclude='photosalon/*.jpg' --exclude='photosalon/*.jpeg' --exclude='photosalon/*.png' --exclude='photosalon/*.CR3' ./ $DEPLOYPATH
