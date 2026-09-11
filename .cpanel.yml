@@ -2,4 +2,4 @@
 deployment:
   tasks:
     - export DEPLOYPATH=/home/ciha0688/public_html/
-    - /usr/bin/rsync -a --delete --exclude='.git' --exclude='.github' --exclude='.cpanel.yml' ./ $DEPLOYPATH
+    - /usr/bin/rsync -av ./ $DEPLOYPATH
